@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { LoginRequest, LoginResponse, RegisterRequest, AuthResponse } from "../types";
+import { LoginRequest, LoginResponse, RegisterRequest, AuthResponse } from "../../types";
 
 
 const API_URL = "http://localhost:3000/api"; // Replace with your actual backend API URL
