@@ -1,0 +1,352 @@
+[
+  {
+    "id": 1,
+    "dimension": "openness",
+    "subfacet": "imagination",
+    "medium": "cinema",
+    "text": "¿En qué medida te atraen las películas que combinan lo real con lo imaginario o lo onírico?"
+  },
+  {
+    "id": 3,
+    "dimension": "openness",
+    "subfacet": "imagination",
+    "medium": "literature",
+    "text": "¿Cuando lees, visualizas los escenarios y personajes con gran detalle imaginativo?"
+  },
+  {
+    "id": 7,
+    "dimension": "openness",
+    "subfacet": "aesthetics",
+    "medium": "music",
+    "text": "¿Encuentras belleza en melodías poco convencionales o estructuras experimentales?"
+  },
+  {
+    "id": 9,
+    "dimension": "openness",
+    "subfacet": "aesthetics",
+    "medium": "visual_art",
+    "text": "¿Sientes placer al observar la composición, el color o la textura de una obra?"
+  },
+  {
+    "id": 13,
+    "dimension": "openness",
+    "subfacet": "feelings",
+    "medium": "literature",
+    "text": "¿Te identificas con personajes que exploran sus emociones y vulnerabilidad?"
+  },
+  {
+    "id": 15,
+    "dimension": "openness",
+    "subfacet": "feelings",
+    "medium": "videogames",
+    "text": "¿Te involucras emocionalmente con las historias o personajes de los videojuegos?"
+  },
+  {
+    "id": 16,
+    "dimension": "openness",
+    "subfacet": "intellectual_curiosity",
+    "medium": "cinema",
+    "text": "¿Prefieres películas que me obligan a reflexionar o interpretar su mensaje?"
+  },
+  {
+    "id": 19,
+    "dimension": "openness",
+    "subfacet": "intellectual_curiosity",
+    "medium": "visual_art",
+    "text": "¿Sueles analizar los símbolos y significados ocultos en una obra de arte?"
+  },
+  {
+    "id": 22,
+    "dimension": "openness",
+    "subfacet": "values_and_new_ideas",
+    "medium": "music",
+    "text": "¿Valoras la música que expresa mensajes políticos, espirituales o sociales?"
+  },
+  {
+    "id": 25,
+    "dimension": "openness",
+    "subfacet": "values_and_new_ideas",
+    "medium": "videogames",
+    "text": "¿Cuánto disfrutas juegos que me hacen reconsiderar mis decisiones o juicios éticos?"
+  },
+  {
+    "id": 26,
+    "dimension": "conscientiousness",
+    "subfacet": "order",
+    "medium": "cinema",
+    "text": "¿Prefieres películas con narrativas estructuradas y coherentes?"
+  },
+  {
+    "id": 28,
+    "dimension": "conscientiousness",
+    "subfacet": "order",
+    "medium": "literature",
+    "text": "¿Cuánto disfrutas lecturas con una trama bien organizada y conclusiva?"
+  },
+  {
+    "id": 32,
+    "dimension": "conscientiousness",
+    "subfacet": "competence",
+    "medium": "music",
+    "text": "¿Aprecias la precisión técnica en la interpretación musical?"
+  },
+  {
+    "id": 34,
+    "dimension": "conscientiousness",
+    "subfacet": "competence",
+    "medium": "visual_art",
+    "text": "¿Sientes que las obras con trazos definidos te transmiten dominio técnico?"
+  },
+  {
+    "id": 38,
+    "dimension": "conscientiousness",
+    "subfacet": "dutifulness",
+    "medium": "literature",
+    "text": "¿Admiras a relatos donde los personajes actúan por ética antes que por deseo?"
+  },
+  {
+    "id": 40,
+    "dimension": "conscientiousness",
+    "subfacet": "dutifulness",
+    "medium": "videogames",
+    "text": "¿En qué medida te atraen juegos que recompensan la constancia y la planificación?"
+  },
+  {
+    "id": 41,
+    "dimension": "conscientiousness",
+    "subfacet": "self_discipline",
+    "medium": "cinema",
+    "text": "¿Cuánto disfrutas películas que retratan la perseverancia ante la adversidad?"
+  },
+  {
+    "id": 44,
+    "dimension": "conscientiousness",
+    "subfacet": "self_discipline",
+    "medium": "visual_art",
+    "text": "¿Encuentras belleza en obras que transmiten calma y control?"
+  },
+  {
+    "id": 47,
+    "dimension": "conscientiousness",
+    "subfacet": "deliberation",
+    "medium": "music",
+    "text": "¿Aprecias composiciones donde cada pausa o nota parece cuidadosamente elegida?"
+  },
+  {
+    "id": 50,
+    "dimension": "conscientiousness",
+    "subfacet": "deliberation",
+    "medium": "videogames",
+    "text": "¿Cuánto disfrutas juegos estratégicos que requieren pensar antes de actuar?"
+  },
+  {
+    "id": 51,
+    "dimension": "extraversion",
+    "subfacet": "friendliness",
+    "medium": "cinema",
+    "text": "¿Te gustan las películas con personajes sociables y expresivos?"
+  },
+  {
+    "id": 53,
+    "dimension": "extraversion",
+    "subfacet": "friendliness",
+    "medium": "literature",
+    "text": "¿Cuánto disfrutas historias centradas en amistades y vínculos humanos?"
+  },
+  {
+    "id": 57,
+    "dimension": "extraversion",
+    "subfacet": "gregariousness",
+    "medium": "music",
+    "text": "¿Te gusta la música que me hace sentir parte de un grupo o comunidad?"
+  },
+  {
+    "id": 59,
+    "dimension": "extraversion",
+    "subfacet": "gregariousness",
+    "medium": "visual_art",
+    "text": "¿Te resultan atractivas las obras que representan escenas de vida social?"
+  },
+  {
+    "id": 63,
+    "dimension": "extraversion",
+    "subfacet": "assertiveness",
+    "medium": "literature",
+    "text": "¿Cuánto disfrutas relatos con protagonistas decididos y seguros de sí mismos?"
+  },
+  {
+    "id": 65,
+    "dimension": "extraversion",
+    "subfacet": "assertiveness",
+    "medium": "videogames",
+    "text": "¿Prefieres juegos donde puedo asumir roles de liderazgo o estrategia?"
+  },
+  {
+    "id": 66,
+    "dimension": "extraversion",
+    "subfacet": "activity",
+    "medium": "cinema",
+    "text": "¿Cuánto disfrutas películas con ritmo ágil y escenas llenas de acción?"
+  },
+  {
+    "id": 69,
+    "dimension": "extraversion",
+    "subfacet": "activity",
+    "medium": "visual_art",
+    "text": "¿En qué medida te atraen obras que transmiten dinamismo y energía?"
+  },
+  {
+    "id": 72,
+    "dimension": "extraversion",
+    "subfacet": "excitement_seeking",
+    "medium": "music",
+    "text": "¿Prefieres música intensa o impredecible que despierte mi adrenalina?"
+  },
+  {
+    "id": 75,
+    "dimension": "extraversion",
+    "subfacet": "excitement_seeking",
+    "medium": "videogames",
+    "text": "¿Te gustan los videojuegos que ofrecen experiencias intensas y riesgosas?"
+  },
+  {
+    "id": 81,
+    "dimension": "agreeableness",
+    "subfacet": "trust",
+    "medium": "cinema",
+    "text": "¿En qué medida te atraen películas donde los personajes confían en los demás?"
+  },
+  {
+    "id": 83,
+    "dimension": "agreeableness",
+    "subfacet": "trust",
+    "medium": "literature",
+    "text": "¿Prefieres libros donde los personajes construyen relaciones basadas en confianza?"
+  },
+  {
+    "id": 87,
+    "dimension": "agreeableness",
+    "subfacet": "morality",
+    "medium": "music",
+    "text": "¿Prefieres música que transmite valores positivos y éticos?"
+  },
+  {
+    "id": 89,
+    "dimension": "agreeableness",
+    "subfacet": "morality",
+    "medium": "visual_art",
+    "text": "¿En qué medida te atraen obras que reflejan principios y respeto hacia otros?"
+  },
+  {
+    "id": 93,
+    "dimension": "agreeableness",
+    "subfacet": "altruism",
+    "medium": "literature",
+    "text": "¿Prefieres libros donde los protagonistas sacrifican sus intereses por el bien común?"
+  },
+  {
+    "id": 95,
+    "dimension": "agreeableness",
+    "subfacet": "altruism",
+    "medium": "videogames",
+    "text": "¿Cuánto disfrutas juegos donde ayudar a otros es parte central de la experiencia?"
+  },
+  {
+    "id": 96,
+    "dimension": "agreeableness",
+    "subfacet": "cooperation",
+    "medium": "cinema",
+    "text": "¿Te gustan historias donde la colaboración es clave para resolver conflictos?"
+  },
+  {
+    "id": 99,
+    "dimension": "agreeableness",
+    "subfacet": "cooperation",
+    "medium": "visual_art",
+    "text": "¿En qué medida te atraen obras que muestran la colaboración y la conexión humana?"
+  },
+  {
+    "id": 102,
+    "dimension": "agreeableness",
+    "subfacet": "modesty",
+    "medium": "music",
+    "text": "¿Cuánto disfrutas canciones que no buscan ostentación sino honestidad?"
+  },
+  {
+    "id": 105,
+    "dimension": "agreeableness",
+    "subfacet": "modesty",
+    "medium": "videogames",
+    "text": "¿Cuánto disfrutas juegos donde la modestia y el esfuerzo silencioso son recompensados?"
+  },
+  {
+    "id": 111,
+    "dimension": "neuroticism",
+    "subfacet": "anxiety",
+    "medium": "cinema",
+    "text": "¿En qué medida te atraen películas que exploran miedos y preocupaciones humanas?"
+  },
+  {
+    "id": 113,
+    "dimension": "neuroticism",
+    "subfacet": "anxiety",
+    "medium": "literature",
+    "text": "¿Prefieres libros que muestran personajes enfrentando incertidumbre o estrés?"
+  },
+  {
+    "id": 117,
+    "dimension": "neuroticism",
+    "subfacet": "anger",
+    "medium": "music",
+    "text": "¿Prefieres canciones que expresan frustración o ira?"
+  },
+  {
+    "id": 119,
+    "dimension": "neuroticism",
+    "subfacet": "anger",
+    "medium": "visual_art",
+    "text": "¿En qué medida te atraen obras que comunican tensión o agresividad?"
+  },
+  {
+    "id": 123,
+    "dimension": "neuroticism",
+    "subfacet": "depression",
+    "medium": "literature",
+    "text": "¿Prefieres libros con personajes que atraviesan soledad o desánimo?"
+  },
+  {
+    "id": 125,
+    "dimension": "neuroticism",
+    "subfacet": "depression",
+    "medium": "videogames",
+    "text": "¿Cuánto disfrutas juegos que transmiten vulnerabilidad o desafíos emocionales?"
+  },
+  {
+    "id": 126,
+    "dimension": "neuroticism",
+    "subfacet": "self_consciousness",
+    "medium": "cinema",
+    "text": "¿Te gustan películas donde los personajes se sienten inseguros o juzgados?"
+  },
+  {
+    "id": 129,
+    "dimension": "neuroticism",
+    "subfacet": "self_consciousness",
+    "medium": "visual_art",
+    "text": "¿En qué medida te atraen obras que transmiten vulnerabilidad o introspección?"
+  },
+  {
+    "id": 132,
+    "dimension": "neuroticism",
+    "subfacet": "immoderation",
+    "medium": "music",
+    "text": "¿Cuánto disfrutas música intensa o desbordante que refleja impulsividad?"
+  },
+  {
+    "id": 135,
+    "dimension": "neuroticism",
+    "subfacet": "immoderation",
+    "medium": "videogames",
+    "text": "¿Cuánto disfrutas juegos donde las decisiones impulsivas tienen consecuencias notables?"
+  }
+]
