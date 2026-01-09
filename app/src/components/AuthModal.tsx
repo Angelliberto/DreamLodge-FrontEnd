@@ -59,7 +59,7 @@ export function AuthModal({ visible, onClose, defaultTab = 'login' }: AuthModalP
 
       // Si no hay error, cerramos y redirigimos
       onClose();
-      router.replace("/FeedScreen"); 
+      router.replace("./FeedScreen"); 
 
     } catch (error: any) {
       // Manejo de errores seguro
