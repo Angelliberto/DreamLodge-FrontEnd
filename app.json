@@ -40,8 +40,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "API_URL": "https://api.example.com",
-      "BACKEND_URL":"http//localhost:3000/api",
+      "BACKEND_URL":"https://impressive-cathee-immune-angelceb-312ac472.koyeb.app/api",
       "TMDB_API_KEY":"eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3MTBkYmEzMjkwNThjMWM1OGM3NDM5NjI2ZmNmNGJhYSIsIm5iZiI6MTc1NTk2ODA3NS42NTI5OTk5LCJzdWIiOiI2OGE5ZjI0YmMwOWEwYjZhM2Y2NmZkZDAiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.Zb1Lu7guyC_g1dkXbw7fmR8Glktb6TNEvwX6lpipB0s"
   
     }
