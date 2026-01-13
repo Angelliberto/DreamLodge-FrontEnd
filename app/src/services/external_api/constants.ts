@@ -1,10 +1,9 @@
 // constants.ts
 
-import Constants from 'expo-constants';
+import { SPOTIFY_CLIENT_ID } from '../../config/api';
 
-const extra = Constants.expoConfig?.extra as any; 
+export { SPOTIFY_CLIENT_ID };
 
-export const SPOTIFY_CLIENT_ID = extra.SPOTIFY_CLIENT_ID;
 // SPOTIFY_CLIENT_SECRET se mantiene oculto en el backend
 
 export const SPOTIFY_SCOPES = [

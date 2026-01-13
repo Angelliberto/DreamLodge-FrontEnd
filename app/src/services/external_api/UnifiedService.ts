@@ -81,7 +81,7 @@ export const globalSearch = async (query: string): Promise<CulturalItem[]> => {
         .catch(e => { console.error("Error Arte", e); return []; })
     );
 
-    // 🚀 EJECUCIÓN PARALELA TOTAL
+    // EJECUCIÓN PARALELA TOTAL
     // Esperamos a que todos terminen (o fallen y devuelvan [])
     const allResults = await Promise.all(promises);
     

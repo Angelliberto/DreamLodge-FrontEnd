@@ -1,17 +1,14 @@
 import axios from 'axios';
-import { LoginRequest, LoginResponse, RegisterRequest, AuthResponse } from "../../types";
-
-
-const API_URL = "https://impressive-cathee-immune-angelceb-312ac472.koyeb.app/api"; // Replace with your actual backend API URL
-
+import { getBackendEndpoint } from "../../config/api";
+import { AuthResponse, LoginRequest, RegisterRequest } from "../../types";
 
 export async function login(data:LoginRequest): Promise<AuthResponse> {
-  const response = await axios.post<AuthResponse>(`${API_URL}/users/login`, data);
+  const response = await axios.post<AuthResponse>(getBackendEndpoint('/users/login'), data);
   return response.data;
 }
 
 export async function register(data:RegisterRequest): Promise<AuthResponse> {
-  const response = await axios.post<AuthResponse>(`${API_URL}/users/register`, data);
+  const response = await axios.post<AuthResponse>(getBackendEndpoint('/users/register'), data);
   return response.data;
 }
 

@@ -1,8 +1,6 @@
 // src/services/external_api/music.ts
+import { getBackendEndpoint } from '../../config/api';
 import { SPOTIFY_API_BASE_URL } from './constants';
-
-// Ajusta esto a tu URL real del backend
-const PROXY_TOKEN_URL = 'https://impressive-cathee-immune-angelceb-312ac472.koyeb.app/api/spotify/token'; 
 
 // --- CACHÉ EN MEMORIA ---
 let cachedToken: string | null = null;
@@ -21,7 +19,7 @@ export const getAppAccessToken = async (): Promise<string | null> => {
 
     try {
         console.log("🎵 Renovando token de Spotify...");
-        const response = await fetch(PROXY_TOKEN_URL, { method: 'GET' });
+        const response = await fetch(getBackendEndpoint('/spotify/token'), { method: 'GET' });
 
         if (!response.ok) return null;
 

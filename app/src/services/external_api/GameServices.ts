@@ -1,13 +1,11 @@
 // src/services/external_api/GameServices.ts
 
-// Ajusta esto a tu IP local si pruebas en móvil real, o localhost si es web/simulador
-const API_URL = "https://impressive-cathee-immune-angelceb-312ac472.koyeb.app/api/igdb/search"; 
+import { getBackendEndpoint } from '../../config/api';
 
 export const searchGames = async (searchTerm: string) => {
   try {
-    console.log(`🔎 Buscando "${searchTerm}" en nuestro backend...`);
     
-    const response = await fetch(API_URL, {
+    const response = await fetch(getBackendEndpoint('/igdb/search'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -17,7 +15,7 @@ export const searchGames = async (searchTerm: string) => {
 
     if (!response.ok) {
         const errorText = await response.text();
-        console.error("❌ Error del Backend:", response.status, errorText);
+        console.error(" Error del Backend:", response.status, errorText);
         throw new Error("Error al conectar con el servidor");
     }
 
@@ -26,7 +24,7 @@ export const searchGames = async (searchTerm: string) => {
     return data;
 
   } catch (error) {
-    console.error("❌ Error en searchGames:", error);
+    console.error(" Error en searchGames:", error);
     return [];
   }
 };

@@ -1,10 +1,7 @@
-import Constants from 'expo-constants';
-import type { ExtraConfig } from '../../types/env';
+import { TMDB_API_KEY } from '../../config/api';
 
-const extra = Constants.expoConfig?.extra as ExtraConfig;
 const API_BASE_URL = 'https://api.themoviedb.org/3';
-// Asegúrate de tener tu API KEY aquí o en tu .env
-const API_KEY = extra?.TMDB_API_KEY || 'TU_API_KEY_AQUI'; 
+const API_KEY = TMDB_API_KEY; 
 
 const API_HEADERS = {
   accept: 'application/json',
