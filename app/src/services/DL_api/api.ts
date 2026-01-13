@@ -2,7 +2,7 @@ import axios from 'axios';
 import { LoginRequest, LoginResponse, RegisterRequest, AuthResponse } from "../../types";
 
 
-const API_URL = "http://localhost:3000/api"; // Replace with your actual backend API URL
+const API_URL = "https://impressive-cathee-immune-angelceb-312ac472.koyeb.app/api"; // Replace with your actual backend API URL
 
 
 export async function login(data:LoginRequest): Promise<AuthResponse> {

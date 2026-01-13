@@ -1,7 +1,7 @@
 // src/services/external_api/GameServices.ts
 
 // Ajusta esto a tu IP local si pruebas en móvil real, o localhost si es web/simulador
-const API_URL = "http://localhost:3000/api/igdb/search"; 
+const API_URL = "https://impressive-cathee-immune-angelceb-312ac472.koyeb.app/api/igdb/search"; 
 
 export const searchGames = async (searchTerm: string) => {
   try {

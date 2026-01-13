@@ -1,8 +1,8 @@
 // src/services/external_api/music.ts
-import { SPOTIFY_API_BASE_URL } from './constants'; 
+import { SPOTIFY_API_BASE_URL } from './constants';
 
 // Ajusta esto a tu URL real del backend
-const PROXY_TOKEN_URL = 'http://localhost:3000/api/spotify/token'; 
+const PROXY_TOKEN_URL = 'https://impressive-cathee-immune-angelceb-312ac472.koyeb.app/api/spotify/token'; 
 
 // --- CACHÉ EN MEMORIA ---
 let cachedToken: string | null = null;
