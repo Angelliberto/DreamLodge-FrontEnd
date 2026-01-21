@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
-import { X, Mail, Lock, User, Chrome, ArrowRight, Shield } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { ArrowRight, Chrome, Lock, Mail, Shield, User, X } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 // Importamos los componentes simplificados (sin cn/clsx)
-import { Input } from './ui/input';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 // Usamos el hook del contexto para manejar la sesión globalmente
 import { useAuth } from '../contexts/AuthContext';
@@ -18,7 +18,7 @@ interface AuthModalProps {
 
 export function AuthModal({ visible, onClose, defaultTab = 'login' }: AuthModalProps) {
   // 👇 USAMOS EL CONTEXTO AQUÍ
-  const { login, register } = useAuth(); 
+  const { login, register, hasTestResults } = useAuth(); 
   
   const [activeTab, setActiveTab] = useState<'login' | 'register'>(defaultTab);
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,6 @@ export function AuthModal({ visible, onClose, defaultTab = 'login' }: AuthModalP
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [birthdate, setBirthdate] = useState('');
   const [enable2FA, setEnable2FA] = useState(false);
 
   // Sincronizar tab inicial
@@ -37,30 +36,78 @@ export function AuthModal({ visible, onClose, defaultTab = 'login' }: AuthModalP
     setActiveTab(defaultTab);
   }, [visible, defaultTab]);
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePassword = (password: string): boolean => {
+    return password.length >= 6;
+  };
+
   const handleSubmit = async () => {
+    // Validaciones
+    if (!email.trim()) {
+      Alert.alert("Error", "Por favor ingresa tu email");
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      Alert.alert("Error", "Por favor ingresa un email válido");
+      return;
+    }
+
+    if (!password.trim()) {
+      Alert.alert("Error", "Por favor ingresa tu contraseña");
+      return;
+    }
+
+    if (activeTab === 'register') {
+      if (!name.trim()) {
+        Alert.alert("Error", "Por favor ingresa tu nombre");
+        return;
+      }
+
+      if (!validatePassword(password)) {
+        Alert.alert("Error", "La contraseña debe tener al menos 6 caracteres");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        Alert.alert("Error", "Las contraseñas no coinciden");
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       if (activeTab === 'login') {
-        // El contexto se encarga de la API y de guardar el token
         await login({ email, password });
-      } else {
-        // Validaciones básicas antes de enviar
-        if (password !== confirmPassword) {
-            throw new Error("Las contraseñas no coinciden");
+        // Esperar un momento para que se actualice hasTestResults
+        await new Promise(resolve => setTimeout(resolve, 800));
+        onClose();
+        // Redirigir según si tiene test o no
+        if (hasTestResults) {
+          router.replace('/src/FeedScreen');
+        } else {
+          router.replace('/test-selection');
         }
+      } else {
         await register({ 
             email, 
             password, 
             name, 
-            birthdate: "2000-01-01", // Puedes agregar un input de fecha si lo necesitas
+            birthdate: "2000-01-01",
             confirmPassword 
         });
+        Alert.alert("¡Éxito!", "Cuenta creada correctamente", [
+          { text: "OK", onPress: () => {
+            onClose();
+            // Usuario nuevo siempre va al test
+            router.replace('/test-selection');
+          }}
+        ]);
       }
-
-      // Si no hay error, cerramos y redirigimos
-      onClose();
-      router.replace("./FeedScreen"); 
-
     } catch (error: any) {
       // Manejo de errores seguro
       const msg = error.response?.data?.message || error.message || "Error de conexión";

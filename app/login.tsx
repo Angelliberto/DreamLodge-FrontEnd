@@ -1,8 +1,7 @@
 import { useRouter } from "expo-router";
-import * as SecureStore from "expo-secure-store";
 import { Chrome, Lock, Mail, Sparkles } from "lucide-react-native";
 import React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Alert, Text, TouchableOpacity, View } from "react-native";
 import { BackgroundLayout } from "../src/components/ui/BackgroundLayout";
 import { Button } from "../src/components/ui/button";
 import { Input } from "../src/components/ui/input";
@@ -10,18 +9,47 @@ import { useAuth } from '../src/contexts/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuth(); 
+  const { login, hasTestResults } = useAuth(); 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleLogin = async () => {
+    // Validaciones
+    if (!email.trim()) {
+      Alert.alert("Error", "Por favor ingresa tu email");
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      Alert.alert("Error", "Por favor ingresa un email válido");
+      return;
+    }
+
+    if (!password.trim()) {
+      Alert.alert("Error", "Por favor ingresa tu contraseña");
+      return;
+    }
+
     setLoading(true);
     try {
       await login({ email, password });
-      router.replace("./FeedScreen"); 
-    } catch (error) {
-      alert("Error al iniciar sesión");
+      // Esperar un momento para que se actualice hasTestResults
+      await new Promise(resolve => setTimeout(resolve, 800));
+      // Redirigir según si tiene test o no
+      if (hasTestResults) {
+        router.replace('/src/FeedScreen');
+      } else {
+        router.replace('/test-selection');
+      }
+    } catch (error: any) {
+      const msg = error.response?.data?.message || error.message || "Error al iniciar sesión";
+      Alert.alert("Error", msg);
     } finally {
       setLoading(false);
     }

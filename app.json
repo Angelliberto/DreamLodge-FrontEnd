@@ -7,15 +7,13 @@
     "scheme": "dreamlodgefrontend",
     "platforms": ["ios", "android", "web"],
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
+    "updates": {
+  "enabled": false
+},
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
       "edgeToEdgeEnabled": true
     },
     "web": {

@@ -1,8 +1,7 @@
 import { useRouter } from "expo-router";
-import * as SecureStore from "expo-secure-store";
-import { Sparkles, User, Mail, Lock, Calendar } from "lucide-react-native";
+import { Calendar, Lock, Mail, Sparkles, User } from "lucide-react-native";
 import React from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { BackgroundLayout } from "../src/components/ui/BackgroundLayout";
 import { Button } from "../src/components/ui/button";
 import { Input } from "../src/components/ui/input";
@@ -20,17 +19,81 @@ export default function RegisterScreen() {
     setForm(prev => ({ ...prev, [key]: value }));
   };
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePassword = (password: string): boolean => {
+    return password.length >= 6;
+  };
+
+  const validateBirthdate = (birthdate: string): boolean => {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(birthdate)) return false;
+    const date = new Date(birthdate);
+    const today = new Date();
+    return date < today && date.getFullYear() > 1900;
+  };
+
   const handleRegister = async () => {
-    if (form.password !== form.confirmPassword) {
-        alert("Las contraseñas no coinciden");
-        return;
+    // Validaciones
+    if (!form.name.trim()) {
+      Alert.alert("Error", "Por favor ingresa tu nombre");
+      return;
     }
+
+    if (!form.email.trim()) {
+      Alert.alert("Error", "Por favor ingresa tu email");
+      return;
+    }
+
+    if (!validateEmail(form.email)) {
+      Alert.alert("Error", "Por favor ingresa un email válido");
+      return;
+    }
+
+    if (!form.birthdate.trim()) {
+      Alert.alert("Error", "Por favor ingresa tu fecha de nacimiento");
+      return;
+    }
+
+    if (!validateBirthdate(form.birthdate)) {
+      Alert.alert("Error", "Por favor ingresa una fecha válida (YYYY-MM-DD)");
+      return;
+    }
+
+    if (!form.password.trim()) {
+      Alert.alert("Error", "Por favor ingresa tu contraseña");
+      return;
+    }
+
+    if (!validatePassword(form.password)) {
+      Alert.alert("Error", "La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    if (form.password !== form.confirmPassword) {
+      Alert.alert("Error", "Las contraseñas no coinciden");
+      return;
+    }
+
     setLoading(true);
     try {
-      await register(form);
-      router.replace("./FeedScreen");
+      await register({ 
+        ...form, 
+        birthdate: form.birthdate || "2000-01-01",
+        confirmPassword: form.confirmPassword 
+      });
+      Alert.alert("¡Éxito!", "Cuenta creada correctamente", [
+        { text: "OK", onPress: () => {
+          // Usuario nuevo siempre va al test
+          router.replace('/test-selection');
+        }}
+      ]);
     } catch (error: any) {
-      alert("Error en registro: " + (error.response?.data?.message || error.message || "Intenta de nuevo"));
+      const msg = error.response?.data?.message || error.message || "Error en el registro";
+      Alert.alert("Error", msg);
     } finally {
       setLoading(false);
     }

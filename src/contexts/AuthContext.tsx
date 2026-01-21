@@ -1,14 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
-import { login as apiLogin, register as apiRegister } from '../services/DL_api/api';
+import { login as apiLogin, register as apiRegister, getUserTestResults } from '../services/DL_api/api';
 import { User, LoginRequest, RegisterRequest, AuthResponse } from '../types';
+import { storage } from '../utils/storage';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  hasTestResults: boolean;
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
+  checkTestResults: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasTestResults, setHasTestResults] = useState(false);
 
   useEffect(() => {
     loadSession();
@@ -23,13 +26,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadSession = async () => {
     try {
-      const token = await SecureStore.getItemAsync('userToken');
-      // Por simplicidad guardamos el perfil básico en local, 
-      // idealmente podrías llamar a un endpoint /me con el token
-      const userData = await SecureStore.getItemAsync('userProfile');
+      const token = await storage.getItem('userToken');
+      const userData = await storage.getItem('userProfile');
       
       if (token && userData) {
-        setUser(JSON.parse(userData));
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+        // Verificar si tiene resultados del test
+        await checkTestResultsForUser(parsedUser._id);
       }
     } catch (error) {
       console.error('Error cargando sesión:', error);
@@ -38,14 +42,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const checkTestResultsForUser = async (userId: string) => {
+    try {
+      const results = await getUserTestResults(userId);
+      setHasTestResults(!!results);
+    } catch (error) {
+      console.error('Error verificando resultados del test:', error);
+      setHasTestResults(false);
+    }
+  };
+
+  const checkTestResults = async () => {
+    if (user?._id) {
+      await checkTestResultsForUser(user._id);
+    }
+  };
+
   const login = async (data: LoginRequest) => {
     try {
       const response: AuthResponse = await apiLogin(data);
       if (response.token) {
         await saveSession(response.token, response.user);
+        // Verificar resultados del test después del login
+        await checkTestResultsForUser(response.user._id);
       }
     } catch (error) {
-      throw error; // Re-lanzamos para que el Modal maneje la alerta visual
+      throw error;
     }
   };
 
@@ -54,6 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response: AuthResponse = await apiRegister(data);
       if (response.token) {
         await saveSession(response.token, response.user);
+        // Usuario nuevo no tiene resultados
+        setHasTestResults(false);
       }
     } catch (error) {
       throw error;
@@ -61,19 +85,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const saveSession = async (token: string, user: User) => {
-    await SecureStore.setItemAsync('userToken', token);
-    await SecureStore.setItemAsync('userProfile', JSON.stringify(user));
+    await storage.setItem('userToken', token);
+    await storage.setItem('userProfile', JSON.stringify(user));
     setUser(user);
   };
 
   const logout = async () => {
-    await SecureStore.deleteItemAsync('userToken');
-    await SecureStore.deleteItemAsync('userProfile');
+    await storage.removeItem('userToken');
+    await storage.removeItem('userProfile');
     setUser(null);
+    setHasTestResults(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, hasTestResults, login, register, logout, checkTestResults }}>
       {children}
     </AuthContext.Provider>
   );

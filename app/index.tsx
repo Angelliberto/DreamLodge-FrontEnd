@@ -1,31 +1,29 @@
-import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Dimensions } from "react-native";
-import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { 
-  Sparkles, 
-  ArrowRight, 
-  Film, 
-  Music, 
-  BookOpen, 
-  Gamepad2, 
-  Palette, 
-  Check, 
-  LogOut, 
-  TrendingUp,
+import { useRouter } from "expo-router";
+import {
+  ArrowRight,
+  BookOpen,
   Brain,
+  Check,
+  Film,
+  Gamepad2,
+  LogOut,
   MessageSquare,
+  Music,
+  Palette,
+  Sparkles,
   Star,
-  Heart
+  TrendingUp
 } from "lucide-react-native";
+import React, { useState } from "react";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 
 // Importaciones locales
-import { BackgroundLayout } from "./src/components/ui/BackgroundLayout";
-import { Button } from "./src/components/ui/button";
-import { AuthModal } from "./src/components/AuthModal";
-import { useAuth } from "./src/contexts/AuthContext";
+import { AuthModal } from "../src/components/AuthModal";
+import { BackgroundLayout } from "../src/components/ui/BackgroundLayout";
+import { Button } from "../src/components/ui/button";
+import { useAuth } from "../src/contexts/AuthContext";
 
-const { width } = Dimensions.get('window');
 
 // Configuración de Categorías
 const CATEGORIES = [
@@ -55,7 +53,7 @@ const STATS = [
 
 
 export default function HomeScreen() {
-  const { user, logout } = useAuth(); 
+  const { user, logout, hasTestResults, isLoading } = useAuth(); 
   const [authVisible, setAuthVisible] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const router = useRouter();
@@ -64,6 +62,83 @@ export default function HomeScreen() {
     setAuthTab(tab);
     setAuthVisible(true);
   };
+
+  // Navegación para usuarios autenticados
+  const handleNavigateToFeed = () => {
+    router.push('/FeedScreen');
+  };
+
+  const handleNavigateToTest = () => {
+    router.push('/test-selection');
+  };
+
+  const handleNavigateToChat = () => {
+    router.push('/ai_chat');
+  };
+
+  // Si el usuario está autenticado y tiene test, mostrar opciones de navegación
+  if (user && hasTestResults && !isLoading) {
+    return (
+      <BackgroundLayout>
+        <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
+          {/* NAVBAR */}
+          <View className="flex-row justify-between items-center px-6 pt-14 pb-4">
+            <View className="flex-row items-center gap-2">
+              <LinearGradient
+                colors={['#c084fc', '#db2777']}
+                className="w-8 h-8 rounded-lg items-center justify-center"
+              >
+                <Sparkles size={16} color="white" />
+              </LinearGradient>
+              <Text className="text-white font-bold text-lg tracking-tight">Dream Lodge</Text>
+            </View>
+            <TouchableOpacity onPress={logout} className="bg-red-500/10 px-4 py-2 rounded-lg border border-red-500/20 flex-row items-center gap-2">
+              <LogOut size={14} color="#ef4444" />
+              <Text className="text-red-400 font-medium text-xs">Salir</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Welcome Section */}
+          <View className="px-6 pt-10 pb-8">
+            <Text className="text-3xl font-bold text-white mb-2">
+              ¡Bienvenido de vuelta, {user.name}!
+            </Text>
+            <Text className="text-slate-400 text-base mb-8">
+              Continúa explorando arte que resuena contigo
+            </Text>
+
+            {/* Quick Actions */}
+            <View className="flex-row gap-3 mb-6">
+              <TouchableOpacity 
+                onPress={handleNavigateToFeed}
+                className="flex-1 bg-purple-600/20 border border-purple-500/30 p-4 rounded-xl items-center"
+              >
+                <Film size={24} color="#c084fc" />
+                <Text className="text-white font-semibold mt-2">Explorar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={handleNavigateToTest}
+                className="flex-1 bg-blue-600/20 border border-blue-500/30 p-4 rounded-xl items-center"
+              >
+                <Brain size={24} color="#60a5fa" />
+                <Text className="text-white font-semibold mt-2">Test</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={handleNavigateToChat}
+                className="flex-1 bg-pink-600/20 border border-pink-500/30 p-4 rounded-xl items-center"
+              >
+                <MessageSquare size={24} color="#f472b6" />
+                <Text className="text-white font-semibold mt-2">Chat IA</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Rest of the content */}
+          {/* ... (resto del contenido original) */}
+        </ScrollView>
+      </BackgroundLayout>
+    );
+  }
 
   // Componente interno para las tarjetas de funcionalidades
   const FeatureCard = ({ icon, title, desc, features, colors }: { icon: React.ElementType, title: string, desc: string, features: string[], colors: string[] }) => {
