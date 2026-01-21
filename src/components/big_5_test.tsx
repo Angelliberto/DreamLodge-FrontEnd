@@ -1,6 +1,6 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Brain, Check, Home, MessageCircle, Star, User, X } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, Brain, Check, LogOut, RefreshCw, Star } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,6 +16,7 @@ import easierTestData from '../../app/data/easier_test.json';
 import questionsData from '../../app/data/questions_json.json';
 import { useAuth } from '../contexts/AuthContext';
 import { saveTestResults } from '../services/DL_api/api';
+import { BottomNavigation } from './BottomNavigation';
 import { NavigationBar } from './NavigationBar';
 import { BackgroundLayout } from './ui/BackgroundLayout';
 
@@ -38,6 +39,7 @@ type Answer = {
 // Pantalla de selección de test
 export function TestSelectionScreen() {
   const router = useRouter();
+  const { logout } = useAuth();
 
   const handleStartTest = (testType: TestType) => {
     if (testType) {
@@ -46,13 +48,23 @@ export function TestSelectionScreen() {
     }
   };
 
+  const handleRestartTest = () => {
+    // Reiniciar el test - volver a la pantalla de selección
+    router.replace('/test-selection');
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/login');
+  };
+
   return (
     <BackgroundLayout>
       <SafeAreaView className="flex-1">
         <StatusBar barStyle="light-content" />
         
         {/* Header Navigation */}
-        <View className="px-4 pt-4 pb-3 border-b border-slate-800/50">
+        <View className="px-4 pt-12 pb-3 border-b border-slate-800/50">
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-2">
               <LinearGradient
@@ -63,30 +75,29 @@ export function TestSelectionScreen() {
               >
                 <Star size={18} color="white" fill="white" />
               </LinearGradient>
-              <Text className="text-2xl font-extrabold text-white">DREAM LODGE</Text>
+              <Text className="text-xl font-extrabold text-white">DREAM LODGE</Text>
             </View>
             
-            <View className="flex-row items-center gap-1">
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <Home size={18} color="#94a3b8" />
+            <View className="flex-row items-center gap-2">
+              <TouchableOpacity 
+                onPress={handleRestartTest}
+                className="bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-600/50 flex-row items-center gap-1.5"
+              >
+                <RefreshCw size={12} color="#94a3b8" />
+                <Text className="text-slate-300 font-medium text-xs">Reiniciar</Text>
               </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg bg-slate-800">
-                <Brain size={18} color="white" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <MessageCircle size={18} color="#94a3b8" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <User size={18} color="#94a3b8" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <X size={18} color="#94a3b8" />
+              <TouchableOpacity 
+                onPress={handleLogout}
+                className="bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 flex-row items-center gap-1.5"
+              >
+                <LogOut size={12} color="#ef4444" />
+                <Text className="text-red-400 font-medium text-xs">Salir</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
-        <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100 }}>
           {/* Main Content Card */}
           <View className="items-center px-6 pt-12 pb-8">
             <View className="w-24 h-24 rounded-full bg-purple-500/20 items-center justify-center mb-6">
@@ -188,6 +199,7 @@ export function TestSelectionScreen() {
             </View>
           </View>
         </ScrollView>
+        <BottomNavigation />
       </SafeAreaView>
     </BackgroundLayout>
   );
