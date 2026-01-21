@@ -1,7 +1,9 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Brain, Check, Copy, Home, MessageCircle, Star, User, X } from 'lucide-react-native';
-import React, { useState } from 'react';
+import { Brain, Check, Copy, Star, User } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Clipboard,
   ScrollView,
@@ -12,8 +14,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LinearGradient } from 'expo-linear-gradient';
+import { BottomNavigation } from '../src/components/BottomNavigation';
+import { NavigationBar } from '../src/components/NavigationBar';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
+import { useAuth } from '../src/contexts/AuthContext';
+import { getUserTestResults } from '../src/services/DL_api/api';
 
 const DIMENSION_NAMES: Record<string, { es: string; color: string }> = {
   openness: { es: 'Apertura a experiencias', color: '#ec4899' },
@@ -82,15 +87,84 @@ function getScoreLabel(score: number): { label: string; description: string } {
 export default function TestResultsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { user } = useAuth();
   const [copied, setCopied] = useState(false);
   const [selectedDimension, setSelectedDimension] = useState<string>('openness');
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<any>({});
 
-  let results: any = {};
-  try {
-    results = params.results ? JSON.parse(params.results as string) : {};
-  } catch (error) {
-    console.error('Error parsing results:', error);
-  }
+  // Load results from params or API
+  useEffect(() => {
+    const loadResults = async () => {
+      // If results are in params, use them
+      if (params.results) {
+        try {
+          const parsedResults = JSON.parse(params.results as string);
+          setResults(parsedResults);
+          return;
+        } catch (error) {
+          console.error('Error parsing results from params:', error);
+        }
+      }
+
+      // Otherwise, load from API if user is logged in
+      if (user?._id) {
+        setLoading(true);
+        try {
+          const apiResults = await getUserTestResults(user._id);
+          // API returns array of results, get the latest one
+          if (apiResults && Array.isArray(apiResults) && apiResults.length > 0) {
+            // Get the most recent result (sorted by createdAt desc)
+            const latestResult = apiResults[0];
+            // Transform backend format (scores.openness.total) to frontend format (dimensions.openness)
+            const dimensions: Record<string, number> = {};
+            if (latestResult.scores) {
+              // Convert scores structure to dimensions
+              Object.keys(latestResult.scores).forEach((dimension) => {
+                const scoreObj = latestResult.scores[dimension];
+                if (scoreObj && typeof scoreObj.total === 'number') {
+                  // Backend stores total, convert to 0-5 scale if needed
+                  dimensions[dimension] = scoreObj.total;
+                }
+              });
+            }
+            
+            setResults({
+              dimensions,
+              testType: latestResult.testType || 'quick',
+              timestamp: latestResult.createdAt
+            });
+          } else if (apiResults && !Array.isArray(apiResults) && apiResults.scores) {
+            // Single result object with scores
+            const dimensions: Record<string, number> = {};
+            Object.keys(apiResults.scores).forEach((dimension) => {
+              const scoreObj = apiResults.scores[dimension];
+              if (scoreObj && typeof scoreObj.total === 'number') {
+                dimensions[dimension] = scoreObj.total;
+              }
+            });
+            
+            setResults({
+              dimensions,
+              testType: apiResults.testType || 'quick',
+              timestamp: apiResults.createdAt
+            });
+          } else {
+            Alert.alert('Sin resultados', 'No se encontraron resultados del test.');
+            router.back();
+          }
+        } catch (error: any) {
+          console.error('Error loading test results:', error);
+          Alert.alert('Error', 'No se pudieron cargar los resultados del test.');
+          router.back();
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadResults();
+  }, [params.results, user?._id]);
 
   const handleCopy = () => {
     try {
@@ -109,47 +183,55 @@ export default function TestResultsScreen() {
   const profile = getProfileDescription(results.dimensions || {});
   const isDeep = results.testType === 'deep';
 
+  if (loading) {
+    return (
+      <BackgroundLayout>
+        <SafeAreaView className="flex-1">
+          <StatusBar barStyle="light-content" />
+          <NavigationBar variant="simple" showAuth={false} showLogout={false} />
+          <View className="flex-1 justify-center items-center">
+            <ActivityIndicator size="large" color="#c084fc" />
+            <Text className="mt-4 text-slate-400">Cargando resultados...</Text>
+          </View>
+        </SafeAreaView>
+      </BackgroundLayout>
+    );
+  }
+
+  if (!results || Object.keys(results).length === 0) {
+    return (
+      <BackgroundLayout>
+        <SafeAreaView className="flex-1">
+          <StatusBar barStyle="light-content" />
+          <NavigationBar variant="simple" showAuth={false} showLogout={false} />
+          <View className="flex-1 justify-center items-center px-4">
+            <Brain size={64} color="#64748b" />
+            <Text className="text-white text-xl font-bold mt-6 mb-2 text-center">
+              Sin resultados
+            </Text>
+            <Text className="text-slate-400 text-center mb-6">
+              No se encontraron resultados del test.
+            </Text>
+            <TouchableOpacity 
+              onPress={() => router.back()}
+              className="bg-purple-600 px-6 py-3 rounded-xl"
+            >
+              <Text className="text-white font-semibold">Volver</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </BackgroundLayout>
+    );
+  }
+
   return (
     <BackgroundLayout>
       <SafeAreaView className="flex-1">
         <StatusBar barStyle="light-content" />
         
-        {/* Header */}
-        <View className="px-4 pt-4 pb-3 border-b border-slate-800/50">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center gap-2">
-              <LinearGradient
-                colors={['#a855f7', '#ec4899']}
-                className="w-8 h-8 rounded-lg items-center justify-center"
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Star size={18} color="white" fill="white" />
-              </LinearGradient>
-              <Text className="text-2xl font-extrabold text-white">DREAM LODGE</Text>
-            </View>
-            
-            <View className="flex-row items-center gap-1">
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <Home size={18} color="#94a3b8" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg bg-slate-800">
-                <Brain size={18} color="white" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <MessageCircle size={18} color="#94a3b8" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <User size={18} color="#94a3b8" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <X size={18} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        <NavigationBar variant="simple" />
 
-        <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100 }}>
           <View className="mx-4 mt-6">
             {/* Title Section */}
             <View className="flex-row items-center gap-3 mb-4">
@@ -166,16 +248,14 @@ export default function TestResultsScreen() {
                   {results.testType === 'quick' ? 'Descubrimiento Rápido' : 'Análisis Profundo'}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600">
-                <LinearGradient
-                  colors={['#a855f7', '#ec4899']}
-                  className="px-4 py-2 rounded-xl"
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Text className="text-white font-medium">Perfil: {profile.profile}</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+              <LinearGradient
+                colors={['#a855f7', '#ec4899']}
+                className="px-4 py-2 rounded-xl"
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text className="text-white font-medium">Perfil: {profile.profile}</Text>
+              </LinearGradient>
             </View>
 
             {/* Profile Card */}
@@ -361,13 +441,14 @@ export default function TestResultsScreen() {
               
               <TouchableOpacity
                 className="flex-1 bg-purple-600 rounded-xl py-4 items-center"
-                onPress={() => router.replace('/src/FeedScreen')}
+                onPress={() => router.replace('/FeedScreen')}
               >
                 <Text className="text-white font-semibold">Explorar</Text>
               </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
+        <BottomNavigation />
       </SafeAreaView>
     </BackgroundLayout>
   );

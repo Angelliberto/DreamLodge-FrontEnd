@@ -1,6 +1,5 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Book, Brain, Clock, Film, Filter, Gamepad2, Heart, Home, MessageSquare, Music, Palette, Search, Star } from 'lucide-react-native';
+import { Book, Brain, Clock, Film, Filter, Gamepad2, Heart, MessageSquare, Music, Palette, Search, Star } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,6 +11,8 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BottomNavigation } from '../src/components/BottomNavigation';
+import { NavigationBar } from '../src/components/NavigationBar';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import { globalSearch } from '../src/services/external_api/UnifiedService';
 import { CulturalItem } from '../src/types/ObraItem';
@@ -190,22 +191,7 @@ export default function UnifiedFeedScreen() {
       <SafeAreaView className="flex-1">
         <StatusBar barStyle="light-content" />
         
-        {/* Header with Logo */}
-        <View className="px-4 pt-4 pb-3 border-b border-slate-800/50">
-          <View className="flex-row items-center justify-between mb-4">
-            <View className="flex-row items-center gap-2">
-              <LinearGradient
-                colors={['#a855f7', '#ec4899']}
-                className="w-8 h-8 rounded-lg items-center justify-center"
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Star size={18} color="white" fill="white" />
-              </LinearGradient>
-              <Text className="text-2xl font-extrabold text-white">DREAM LODGE</Text>
-            </View>
-          </View>
-        </View>
+        <NavigationBar variant="simple" showAuth={false} showLogout={false} />
 
         {/* Search Container */}
         <View className="px-4 pt-4 pb-3">
@@ -268,44 +254,7 @@ export default function UnifiedFeedScreen() {
           />
         )}
 
-        {/* Bottom Navigation Bar */}
-        <View className="absolute bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800/50 pb-safe">
-          <SafeAreaView>
-            <View className="flex-row justify-around items-center px-2 py-3">
-              <TouchableOpacity 
-                onPress={() => router.push('/')}
-                className="flex-1 items-center py-2"
-              >
-                <Home size={22} color="#c084fc" fill="#c084fc" />
-                <Text className="text-xs text-purple-400 mt-1 font-medium">Inicio</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                onPress={() => {}}
-                className="flex-1 items-center py-2"
-              >
-                <Film size={22} color="#c084fc" fill="#c084fc" />
-                <Text className="text-xs text-purple-400 mt-1 font-medium">Explorar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                onPress={() => router.push('/test-selection')}
-                className="flex-1 items-center py-2"
-              >
-                <Brain size={22} color="#64748b" />
-                <Text className="text-xs text-slate-500 mt-1 font-medium">Test</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                onPress={() => router.push('/ai_chat')}
-                className="flex-1 items-center py-2"
-              >
-                <MessageSquare size={22} color="#64748b" />
-                <Text className="text-xs text-slate-500 mt-1 font-medium">Chat</Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        </View>
+        <BottomNavigation />
       </SafeAreaView>
     </BackgroundLayout>
   );

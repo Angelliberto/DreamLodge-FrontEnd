@@ -1,5 +1,5 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Brain, Check, Home, MessageCircle, Star, User, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
@@ -16,6 +16,7 @@ import easierTestData from '../../app/data/easier_test.json';
 import questionsData from '../../app/data/questions_json.json';
 import { useAuth } from '../contexts/AuthContext';
 import { saveTestResults } from '../services/DL_api/api';
+import { NavigationBar } from './NavigationBar';
 import { BackgroundLayout } from './ui/BackgroundLayout';
 
 // const { width } = Dimensions.get('window'); // No usado actualmente
@@ -315,9 +316,14 @@ export default function BigFiveTestScreen() {
       try {
         await saveTestResults(user._id, finalResults);
         await checkTestResults(); // Actualizar el estado de hasTestResults
-      } catch (error) {
+        console.log('Resultados del test guardados exitosamente en el servidor');
+      } catch (error: any) {
         console.error('Error guardando resultados:', error);
-        Alert.alert('Advertencia', 'Los resultados se guardaron localmente pero no se pudieron sincronizar con el servidor');
+        const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
+        Alert.alert(
+          'Advertencia', 
+          `Los resultados se guardaron localmente pero no se pudieron sincronizar con el servidor: ${errorMessage}`
+        );
       }
     }
 
@@ -342,40 +348,7 @@ export default function BigFiveTestScreen() {
       <SafeAreaView className="flex-1">
         <StatusBar barStyle="light-content" />
         
-        {/* Header */}
-        <View className="px-4 pt-4 pb-3 border-b border-slate-800/50">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center gap-2">
-              <LinearGradient
-                colors={['#a855f7', '#ec4899']}
-                className="w-8 h-8 rounded-lg items-center justify-center"
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Star size={18} color="white" fill="white" />
-              </LinearGradient>
-              <Text className="text-2xl font-extrabold text-white">DREAM LODGE</Text>
-            </View>
-            
-            <View className="flex-row items-center gap-1">
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <Home size={18} color="#94a3b8" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg bg-slate-800">
-                <Brain size={18} color="white" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <MessageCircle size={18} color="#94a3b8" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <User size={18} color="#94a3b8" />
-              </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 rounded-lg">
-                <X size={18} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        <NavigationBar variant="simple" showAuth={false} showLogout={false} />
 
         {loading ? (
           <View className="flex-1 justify-center items-center">

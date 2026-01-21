@@ -85,12 +85,9 @@ export default function RegisterScreen() {
         birthdate: form.birthdate || "2000-01-01",
         confirmPassword: form.confirmPassword 
       });
-      Alert.alert("¡Éxito!", "Cuenta creada correctamente", [
-        { text: "OK", onPress: () => {
-          // Usuario nuevo siempre va al test
-          router.replace('/test-selection');
-        }}
-      ]);
+      // Usuario nuevo siempre va al test - redirigir directamente sin Alert
+      // No resetear loading aquí porque estamos navegando a otra pantalla
+      router.replace('/test-selection');
     } catch (error: any) {
       const msg = error.response?.data?.message || error.message || "Error en el registro";
       Alert.alert("Error", msg);
