@@ -9,47 +9,99 @@ import { useAuth } from '../src/contexts/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, hasTestResults } = useAuth(); 
+  const { login } = useAuth(); 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  
+  // Estados de validación en tiempo real
+  const [errors, setErrors] = React.useState({
+    email: "",
+    password: ""
+  });
+  const [touched, setTouched] = React.useState({
+    email: false,
+    password: false
+  });
 
-  const validateEmail = (email: string): boolean => {
+  const validateEmail = (email: string): string => {
+    if (!email.trim()) {
+      return "El email es requerido";
+    }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    if (!emailRegex.test(email)) {
+      return "Por favor ingresa un email válido";
+    }
+    return "";
+  };
+
+  const validatePassword = (password: string): string => {
+    if (!password.trim()) {
+      return "La contraseña es requerida";
+    }
+    if (password.length < 6) {
+      return "La contraseña debe tener al menos 6 caracteres";
+    }
+    return "";
+  };
+
+  // Validación en tiempo real
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (touched.email) {
+      setErrors(prev => ({ ...prev, email: validateEmail(value) }));
+    }
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (touched.password) {
+      setErrors(prev => ({ ...prev, password: validatePassword(value) }));
+    }
+  };
+
+  const handleEmailBlur = () => {
+    setTouched(prev => ({ ...prev, email: true }));
+    setErrors(prev => ({ ...prev, email: validateEmail(email) }));
+  };
+
+  const handlePasswordBlur = () => {
+    setTouched(prev => ({ ...prev, password: true }));
+    setErrors(prev => ({ ...prev, password: validatePassword(password) }));
   };
 
   const handleLogin = async () => {
-    // Validaciones
-    if (!email.trim()) {
-      Alert.alert("Error", "Por favor ingresa tu email");
-      return;
-    }
+    // Marcar todos los campos como tocados
+    setTouched({ email: true, password: true });
+    
+    // Validar todos los campos
+    const emailError = validateEmail(email);
+    const passwordError = validatePassword(password);
+    
+    setErrors({
+      email: emailError,
+      password: passwordError
+    });
 
-    if (!validateEmail(email)) {
-      Alert.alert("Error", "Por favor ingresa un email válido");
-      return;
-    }
-
-    if (!password.trim()) {
-      Alert.alert("Error", "Por favor ingresa tu contraseña");
+    // Si hay errores, no continuar
+    if (emailError || passwordError) {
       return;
     }
 
     setLoading(true);
     try {
-      await login({ email, password });
-      // Esperar un momento para que se actualice hasTestResults
-      await new Promise(resolve => setTimeout(resolve, 800));
-      // Redirigir según si tiene test o no
-      if (hasTestResults) {
-        router.replace('/src/FeedScreen');
-      } else {
-        router.replace('/test-selection');
-      }
+      await login({ email: email.trim(), password: password.trim() });
+      // Redirigir a index.tsx que manejará la redirección automática
+      // basándose en si el usuario tiene tests completados
+      router.replace('/');
     } catch (error: any) {
-      const msg = error.response?.data?.message || error.message || "Error al iniciar sesión";
-      Alert.alert("Error", msg);
+      // Manejo mejorado de errores 401
+      if (error.response?.status === 401) {
+        Alert.alert("Error de autenticación", "Email o contraseña incorrectos. Por favor verifica tus credenciales.");
+      } else {
+        const msg = error.response?.data?.message || error.message || "Error al iniciar sesión. Por favor intenta nuevamente.";
+        Alert.alert("Error", msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -95,15 +147,20 @@ export default function LoginScreen() {
               <View className="relative">
                 <Input 
                   value={email} 
-                  onChangeText={setEmail} 
+                  onChangeText={handleEmailChange}
+                  onBlur={handleEmailBlur}
                   placeholder="tu@email.com" 
                   autoCapitalize="none"
-                  className="pl-10"
+                  keyboardType="email-address"
+                  className={`pl-10 ${errors.email ? "border-red-500" : ""}`}
                 />
                 <View className="absolute left-3 top-3.5">
-                  <Mail size={18} color="#64748b" />
+                  <Mail size={18} color={errors.email ? "#ef4444" : "#64748b"} />
                 </View>
               </View>
+              {errors.email ? (
+                <Text className="text-red-400 text-xs mt-1">{errors.email}</Text>
+              ) : null}
             </View>
 
             {/* Input Contraseña con Icono */}
@@ -112,15 +169,19 @@ export default function LoginScreen() {
               <View className="relative">
                 <Input 
                   value={password} 
-                  onChangeText={setPassword} 
+                  onChangeText={handlePasswordChange}
+                  onBlur={handlePasswordBlur}
                   placeholder="••••••••" 
                   secureTextEntry
-                  className="pl-10"
+                  className={`pl-10 ${errors.password ? "border-red-500" : ""}`}
                 />
                 <View className="absolute left-3 top-3.5">
-                  <Lock size={18} color="#64748b" />
+                  <Lock size={18} color={errors.password ? "#ef4444" : "#64748b"} />
                 </View>
               </View>
+              {errors.password ? (
+                <Text className="text-red-400 text-xs mt-1">{errors.password}</Text>
+              ) : null}
             </View>
 
             <Button 

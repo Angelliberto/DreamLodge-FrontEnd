@@ -14,83 +14,224 @@ export default function RegisterScreen() {
     name: "", email: "", password: "", confirmPassword: "", birthdate: ""
   });
   const [loading, setLoading] = React.useState(false);
+  
+  // Estados de validación en tiempo real
+  const [errors, setErrors] = React.useState({
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    birthdate: ""
+  });
+  const [touched, setTouched] = React.useState({
+    name: false,
+    email: false,
+    password: false,
+    confirmPassword: false,
+    birthdate: false
+  });
 
   const handleChange = (key: string, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
+    
+    // Validación en tiempo real cuando el campo ha sido tocado
+    if (touched[key as keyof typeof touched]) {
+      validateField(key, value);
+    }
   };
 
-  const validateEmail = (email: string): boolean => {
+  const validateName = (name: string): string => {
+    if (!name.trim()) {
+      return "El nombre es requerido";
+    }
+    if (name.trim().length < 2) {
+      return "El nombre debe tener al menos 2 caracteres";
+    }
+    return "";
+  };
+
+  const validateEmail = (email: string): string => {
+    if (!email.trim()) {
+      return "El email es requerido";
+    }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    if (!emailRegex.test(email)) {
+      return "Por favor ingresa un email válido";
+    }
+    return "";
   };
 
-  const validatePassword = (password: string): boolean => {
-    return password.length >= 6;
+  const validatePassword = (password: string): string => {
+    if (!password.trim()) {
+      return "La contraseña es requerida";
+    }
+    if (password.length < 6) {
+      return "La contraseña debe tener al menos 6 caracteres";
+    }
+    if (password.length > 50) {
+      return "La contraseña no puede tener más de 50 caracteres";
+    }
+    return "";
   };
 
-  const validateBirthdate = (birthdate: string): boolean => {
+  const validateConfirmPassword = (confirmPassword: string, password: string): string => {
+    if (!confirmPassword.trim()) {
+      return "Por favor confirma tu contraseña";
+    }
+    if (confirmPassword !== password) {
+      return "Las contraseñas no coinciden";
+    }
+    return "";
+  };
+
+  const formatDateInput = (value: string): string => {
+    // Remover caracteres no numéricos
+    const numbers = value.replace(/\D/g, '');
+    
+    // Formatear como YYYY-MM-DD
+    if (numbers.length <= 4) {
+      return numbers;
+    } else if (numbers.length <= 6) {
+      return `${numbers.slice(0, 4)}-${numbers.slice(4)}`;
+    } else {
+      return `${numbers.slice(0, 4)}-${numbers.slice(4, 6)}-${numbers.slice(6, 8)}`;
+    }
+  };
+
+  const validateBirthdate = (birthdate: string): string => {
+    if (!birthdate.trim()) {
+      return "La fecha de nacimiento es requerida";
+    }
+    
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(birthdate)) return false;
+    if (!dateRegex.test(birthdate)) {
+      return "Formato inválido. Usa YYYY-MM-DD";
+    }
+    
     const date = new Date(birthdate);
     const today = new Date();
-    return date < today && date.getFullYear() > 1900;
+    today.setHours(0, 0, 0, 0);
+    
+    // Verificar que la fecha sea válida
+    if (isNaN(date.getTime())) {
+      return "Fecha inválida";
+    }
+    
+    // Verificar que no sea en el futuro
+    if (date >= today) {
+      return "La fecha no puede ser en el futuro";
+    }
+    
+    // Verificar que sea razonable (mayor a 1900)
+    if (date.getFullYear() < 1900) {
+      return "La fecha debe ser posterior a 1900";
+    }
+    
+    // Verificar edad mínima (13 años)
+    const age = today.getFullYear() - date.getFullYear();
+    const monthDiff = today.getMonth() - date.getMonth();
+    const dayDiff = today.getDate() - date.getDate();
+    const actualAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
+    
+    if (actualAge < 13) {
+      return "Debes tener al menos 13 años";
+    }
+    
+    return "";
+  };
+
+  const validateField = (key: string, value: string) => {
+    let error = "";
+    
+    switch (key) {
+      case "name":
+        error = validateName(value);
+        break;
+      case "email":
+        error = validateEmail(value);
+        break;
+      case "password":
+        error = validatePassword(value);
+        // Si cambia la contraseña, validar también confirmPassword
+        if (touched.confirmPassword) {
+          setErrors(prev => ({
+            ...prev,
+            confirmPassword: validateConfirmPassword(form.confirmPassword, value)
+          }));
+        }
+        break;
+      case "confirmPassword":
+        error = validateConfirmPassword(value, form.password);
+        break;
+      case "birthdate":
+        error = validateBirthdate(value);
+        break;
+    }
+    
+    setErrors(prev => ({ ...prev, [key]: error }));
+  };
+
+  const handleBlur = (key: string) => {
+    setTouched(prev => ({ ...prev, [key]: true }));
+    validateField(key, form[key as keyof typeof form]);
+  };
+
+  const handleBirthdateChange = (value: string) => {
+    const formatted = formatDateInput(value);
+    handleChange('birthdate', formatted);
   };
 
   const handleRegister = async () => {
-    // Validaciones
-    if (!form.name.trim()) {
-      Alert.alert("Error", "Por favor ingresa tu nombre");
-      return;
-    }
+    // Marcar todos los campos como tocados
+    setTouched({
+      name: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+      birthdate: true
+    });
+    
+    // Validar todos los campos
+    const nameError = validateName(form.name);
+    const emailError = validateEmail(form.email);
+    const passwordError = validatePassword(form.password);
+    const confirmPasswordError = validateConfirmPassword(form.confirmPassword, form.password);
+    const birthdateError = validateBirthdate(form.birthdate);
+    
+    setErrors({
+      name: nameError,
+      email: emailError,
+      password: passwordError,
+      confirmPassword: confirmPasswordError,
+      birthdate: birthdateError
+    });
 
-    if (!form.email.trim()) {
-      Alert.alert("Error", "Por favor ingresa tu email");
-      return;
-    }
-
-    if (!validateEmail(form.email)) {
-      Alert.alert("Error", "Por favor ingresa un email válido");
-      return;
-    }
-
-    if (!form.birthdate.trim()) {
-      Alert.alert("Error", "Por favor ingresa tu fecha de nacimiento");
-      return;
-    }
-
-    if (!validateBirthdate(form.birthdate)) {
-      Alert.alert("Error", "Por favor ingresa una fecha válida (YYYY-MM-DD)");
-      return;
-    }
-
-    if (!form.password.trim()) {
-      Alert.alert("Error", "Por favor ingresa tu contraseña");
-      return;
-    }
-
-    if (!validatePassword(form.password)) {
-      Alert.alert("Error", "La contraseña debe tener al menos 6 caracteres");
-      return;
-    }
-
-    if (form.password !== form.confirmPassword) {
-      Alert.alert("Error", "Las contraseñas no coinciden");
+    // Si hay errores, no continuar
+    if (nameError || emailError || passwordError || confirmPasswordError || birthdateError) {
       return;
     }
 
     setLoading(true);
     try {
       await register({ 
-        ...form, 
-        birthdate: form.birthdate || "2000-01-01",
-        confirmPassword: form.confirmPassword 
+        name: form.name.trim(),
+        email: form.email.trim(),
+        password: form.password.trim(),
+        birthdate: form.birthdate.trim(),
+        confirmPassword: form.confirmPassword.trim()
       });
       // Usuario nuevo siempre va al test - redirigir directamente sin Alert
       // No resetear loading aquí porque estamos navegando a otra pantalla
       router.replace('/test-selection');
     } catch (error: any) {
-      const msg = error.response?.data?.message || error.message || "Error en el registro";
-      Alert.alert("Error", msg);
+      // Manejo mejorado de errores
+      if (error.response?.status === 401 || error.response?.status === 400) {
+        const msg = error.response?.data?.message || "Error en el registro. Verifica tus datos.";
+        Alert.alert("Error", msg);
+      } else {
+        const msg = error.response?.data?.message || error.message || "Error en el registro. Por favor intenta nuevamente.";
+        Alert.alert("Error", msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -132,12 +273,16 @@ export default function RegisterScreen() {
                   placeholder="Nombre completo" 
                   value={form.name}
                   onChangeText={(t) => handleChange('name', t)}
-                  className="pl-10"
+                  onBlur={() => handleBlur('name')}
+                  className={`pl-10 ${errors.name ? "border-red-500" : ""}`}
                 />
                 <View className="absolute left-3 top-3.5">
-                  <User size={18} color="#64748b" />
+                  <User size={18} color={errors.name ? "#ef4444" : "#64748b"} />
                 </View>
               </View>
+              {errors.name ? (
+                <Text className="text-red-400 text-xs mt-1">{errors.name}</Text>
+              ) : null}
             </View>
             
             {/* Input Email */}
@@ -149,13 +294,17 @@ export default function RegisterScreen() {
                   value={form.email}
                   keyboardType="email-address"
                   onChangeText={(t) => handleChange('email', t)}
+                  onBlur={() => handleBlur('email')}
                   autoCapitalize="none"
-                  className="pl-10"
+                  className={`pl-10 ${errors.email ? "border-red-500" : ""}`}
                 />
                 <View className="absolute left-3 top-3.5">
-                  <Mail size={18} color="#64748b" />
+                  <Mail size={18} color={errors.email ? "#ef4444" : "#64748b"} />
                 </View>
               </View>
+              {errors.email ? (
+                <Text className="text-red-400 text-xs mt-1">{errors.email}</Text>
+              ) : null}
             </View>
             
             {/* Input Fecha de Nacimiento */}
@@ -163,15 +312,23 @@ export default function RegisterScreen() {
               <Text className="text-slate-300 mb-1.5 text-sm font-medium">Fecha de Nacimiento</Text>
               <View className="relative">
                 <Input 
-                  placeholder="YYYY-MM-DD" 
+                  placeholder="YYYY-MM-DD (ej: 2000-01-15)" 
                   value={form.birthdate}
-                  onChangeText={(t) => handleChange('birthdate', t)}
-                  className="pl-10"
+                  onChangeText={handleBirthdateChange}
+                  onBlur={() => handleBlur('birthdate')}
+                  keyboardType="numeric"
+                  maxLength={10}
+                  className={`pl-10 ${errors.birthdate ? "border-red-500" : ""}`}
                 />
                 <View className="absolute left-3 top-3.5">
-                  <Calendar size={18} color="#64748b" />
+                  <Calendar size={18} color={errors.birthdate ? "#ef4444" : "#64748b"} />
                 </View>
               </View>
+              {errors.birthdate ? (
+                <Text className="text-red-400 text-xs mt-1">{errors.birthdate}</Text>
+              ) : (
+                <Text className="text-slate-500 text-xs mt-1">Formato: AAAA-MM-DD</Text>
+              )}
             </View>
 
             {/* Input Contraseña */}
@@ -183,12 +340,16 @@ export default function RegisterScreen() {
                   secureTextEntry
                   value={form.password}
                   onChangeText={(t) => handleChange('password', t)}
-                  className="pl-10"
+                  onBlur={() => handleBlur('password')}
+                  className={`pl-10 ${errors.password ? "border-red-500" : ""}`}
                 />
                 <View className="absolute left-3 top-3.5">
-                  <Lock size={18} color="#64748b" />
+                  <Lock size={18} color={errors.password ? "#ef4444" : "#64748b"} />
                 </View>
               </View>
+              {errors.password ? (
+                <Text className="text-red-400 text-xs mt-1">{errors.password}</Text>
+              ) : null}
             </View>
 
             {/* Input Confirmar Contraseña */}
@@ -200,12 +361,16 @@ export default function RegisterScreen() {
                   secureTextEntry
                   value={form.confirmPassword}
                   onChangeText={(t) => handleChange('confirmPassword', t)}
-                  className="pl-10"
+                  onBlur={() => handleBlur('confirmPassword')}
+                  className={`pl-10 ${errors.confirmPassword ? "border-red-500" : ""}`}
                 />
                 <View className="absolute left-3 top-3.5">
-                  <Lock size={18} color="#64748b" />
+                  <Lock size={18} color={errors.confirmPassword ? "#ef4444" : "#64748b"} />
                 </View>
               </View>
+              {errors.confirmPassword ? (
+                <Text className="text-red-400 text-xs mt-1">{errors.confirmPassword}</Text>
+              ) : null}
             </View>
 
             <Button 
