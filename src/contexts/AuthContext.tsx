@@ -7,6 +7,8 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   hasTestResults: boolean;
+  hasQuickTest: boolean;
+  hasDeepTest: boolean;
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
@@ -19,6 +21,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasTestResults, setHasTestResults] = useState(false);
+  const [hasQuickTest, setHasQuickTest] = useState(false);
+  const [hasDeepTest, setHasDeepTest] = useState(false);
 
   useEffect(() => {
     loadSession();
@@ -45,10 +49,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkTestResultsForUser = async (userId: string) => {
     try {
       const results = await getUserTestResults(userId);
-      setHasTestResults(!!results);
+      console.log('Test results from API:', results);
+      
+      // Manejar diferentes formatos de respuesta
+      let resultsArray: any[] = [];
+      if (Array.isArray(results)) {
+        resultsArray = results;
+      } else if (results && typeof results === 'object' && results.data && Array.isArray(results.data)) {
+        resultsArray = results.data;
+      } else if (results && typeof results === 'object' && results.scores) {
+        // Si es un objeto único con scores, convertirlo a array
+        resultsArray = [results];
+      }
+      
+      if (resultsArray.length > 0) {
+        setHasTestResults(true);
+        // Verificar qué tipos de test tiene el usuario
+        const hasQuick = resultsArray.some((r: any) => r.testType === 'quick' || (!r.testType && r.scores));
+        const hasDeep = resultsArray.some((r: any) => r.testType === 'deep');
+        setHasQuickTest(hasQuick);
+        setHasDeepTest(hasDeep);
+        console.log('Test status - Quick:', hasQuick, 'Deep:', hasDeep);
+      } else {
+        setHasTestResults(false);
+        setHasQuickTest(false);
+        setHasDeepTest(false);
+      }
     } catch (error) {
       console.error('Error verificando resultados del test:', error);
       setHasTestResults(false);
+      setHasQuickTest(false);
+      setHasDeepTest(false);
     }
   };
 
@@ -95,10 +126,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await storage.removeItem('userProfile');
     setUser(null);
     setHasTestResults(false);
+    setHasQuickTest(false);
+    setHasDeepTest(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, hasTestResults, login, register, logout, checkTestResults }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      isLoading, 
+      hasTestResults, 
+      hasQuickTest, 
+      hasDeepTest,
+      login, 
+      register, 
+      logout, 
+      checkTestResults 
+    }}>
       {children}
     </AuthContext.Provider>
   );

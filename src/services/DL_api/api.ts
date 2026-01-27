@@ -95,7 +95,8 @@ export async function saveTestResults(userId: string, results: any): Promise<voi
     entityType: 'user',
     entityId: userId,
     scores,
-    totalScore
+    totalScore,
+    testType: results.testType || 'quick'
   };
   
   console.log('Saving test results with payload:', JSON.stringify(payload, null, 2));

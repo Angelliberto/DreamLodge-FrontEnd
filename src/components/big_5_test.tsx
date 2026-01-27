@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Brain, Check, LogOut, RefreshCw, Star } from 'lucide-react-native';
-import React, { useState } from 'react';
+import { ArrowLeft, Brain, Check, CheckCircle2, LogOut, RefreshCw, Star } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -39,7 +39,14 @@ type Answer = {
 // Pantalla de selección de test
 export function TestSelectionScreen() {
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout, hasQuickTest, hasDeepTest, isLoading } = useAuth();
+
+  // Redirigir automáticamente a FeedScreen si tiene ambos tests
+  useEffect(() => {
+    if (!isLoading && hasQuickTest && hasDeepTest) {
+      router.replace('/FeedScreen');
+    }
+  }, [isLoading, hasQuickTest, hasDeepTest, router]);
 
   const handleStartTest = (testType: TestType) => {
     if (testType) {
@@ -57,6 +64,21 @@ export function TestSelectionScreen() {
     await logout();
     router.replace('/login');
   };
+
+  // Si está cargando o tiene ambos tests, mostrar loading
+  if (isLoading || (hasQuickTest && hasDeepTest)) {
+    return (
+      <BackgroundLayout>
+        <SafeAreaView className="flex-1">
+          <StatusBar barStyle="light-content" />
+          <View className="flex-1 justify-center items-center">
+            <ActivityIndicator size="large" color="#c084fc" />
+            <Text className="mt-4 text-slate-400">Cargando...</Text>
+          </View>
+        </SafeAreaView>
+      </BackgroundLayout>
+    );
+  }
 
   return (
     <BackgroundLayout>
@@ -109,25 +131,39 @@ export function TestSelectionScreen() {
             </Text>
             
             <Text className="text-base text-slate-400 text-center px-4 leading-6">
-              Para comenzar tu experiencia en Dream Lodge, necesitamos conocer tu perfil artístico. Elige el tipo de test que prefieres realizar.
+              {hasQuickTest || hasDeepTest 
+                ? 'Completa el test que falta o rehaz uno de los tests para actualizar tus resultados.'
+                : 'Para comenzar tu experiencia en Dream Lodge, necesitamos conocer tu perfil artístico. Elige el tipo de test que prefieres realizar.'}
             </Text>
           </View>
 
           {/* Test Options */}
           <View className="px-6 gap-6">
             {/* Quick Test Card */}
-            <View className="bg-slate-800/90 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
+            <View className={`bg-slate-800/90 border rounded-2xl p-6 shadow-xl ${
+              hasQuickTest ? 'border-green-500/50' : 'border-slate-700/50'
+            }`}>
               <View className="flex-row items-start gap-4 mb-4">
                 <View className="w-16 h-16 rounded-xl bg-blue-500/20 items-center justify-center">
                   <Star size={32} color="#3b82f6" fill="#3b82f6" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-xl font-bold text-white mb-2">
+                  <View className="flex-row items-center gap-2 mb-2">
+                    <Text className="text-xl font-bold text-white">
                     Descubrimiento Rápido
                   </Text>
+                    {hasQuickTest && (
+                      <CheckCircle2 size={20} color="#22c55e" fill="#22c55e" />
+                    )}
+                  </View>
                   <Text className="text-sm text-slate-400 leading-5">
                     50 preguntas para obtener tu perfil artístico básico y comenzar a explorar
                   </Text>
+                  {hasQuickTest && (
+                    <Text className="text-xs text-green-400 mt-2 font-medium">
+                      ✓ Test completado
+                    </Text>
+                  )}
                 </View>
               </View>
 
@@ -146,29 +182,43 @@ export function TestSelectionScreen() {
               </View>
 
               <TouchableOpacity
-                className="bg-blue-600 rounded-xl py-4 items-center"
+                className={`rounded-xl py-4 items-center ${
+                  hasQuickTest ? 'bg-green-600' : 'bg-blue-600'
+                }`}
                 onPress={() => handleStartTest('quick')}
                 activeOpacity={0.8}
               >
                 <Text className="text-white font-bold text-base">
-                  Comenzar Test Rápido
+                  {hasQuickTest ? 'Rehacer Test Rápido' : 'Comenzar Test Rápido'}
                 </Text>
               </TouchableOpacity>
             </View>
 
             {/* Deep Test Card */}
-            <View className="bg-slate-800/90 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
+            <View className={`bg-slate-800/90 border rounded-2xl p-6 shadow-xl ${
+              hasDeepTest ? 'border-green-500/50' : 'border-slate-700/50'
+            }`}>
               <View className="flex-row items-start gap-4 mb-4">
                 <View className="w-16 h-16 rounded-xl bg-purple-500/20 items-center justify-center">
                   <Brain size={32} color="#a855f7" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-xl font-bold text-white mb-2">
+                  <View className="flex-row items-center gap-2 mb-2">
+                    <Text className="text-xl font-bold text-white">
                     Análisis Profundo
                   </Text>
+                    {hasDeepTest && (
+                      <CheckCircle2 size={20} color="#22c55e" fill="#22c55e" />
+                    )}
+                  </View>
                   <Text className="text-sm text-slate-400 leading-5">
                     125 preguntas para un análisis detallado con subfacetas de cada rasgo de personalidad
                   </Text>
+                  {hasDeepTest && (
+                    <Text className="text-xs text-green-400 mt-2 font-medium">
+                      ✓ Test completado
+                    </Text>
+                  )}
                 </View>
               </View>
 
@@ -188,12 +238,14 @@ export function TestSelectionScreen() {
               </View>
 
               <TouchableOpacity
-                className="bg-purple-600 rounded-xl py-4 items-center"
+                className={`rounded-xl py-4 items-center ${
+                  hasDeepTest ? 'bg-green-600' : 'bg-purple-600'
+                }`}
                 onPress={() => handleStartTest('deep')}
                 activeOpacity={0.8}
               >
                 <Text className="text-white font-bold text-base">
-                  Comenzar Análisis Profundo
+                  {hasDeepTest ? 'Rehacer Análisis Profundo' : 'Comenzar Análisis Profundo'}
                 </Text>
               </TouchableOpacity>
             </View>
