@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
 import { Chrome, Lock, Mail, Sparkles } from "lucide-react-native";
 import React from "react";
-import { Alert, Text, TouchableOpacity, View } from "react-native";
+import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { BackgroundLayout } from "../src/components/ui/BackgroundLayout";
 import { Button } from "../src/components/ui/button";
 import { Input } from "../src/components/ui/input";
@@ -13,7 +14,7 @@ export default function LoginScreen() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
-  
+
   // Estados de validación en tiempo real
   const [errors, setErrors] = React.useState({
     email: "",
@@ -39,8 +40,8 @@ export default function LoginScreen() {
     if (!password.trim()) {
       return "La contraseña es requerida";
     }
-    if (password.length < 6) {
-      return "La contraseña debe tener al menos 6 caracteres";
+    if (password.length < 8) {
+      return "La contraseña debe tener al menos 8 caracteres";
     }
     return "";
   };
@@ -95,13 +96,31 @@ export default function LoginScreen() {
       // basándose en si el usuario tiene tests completados
       router.replace('/');
     } catch (error: any) {
-      // Manejo mejorado de errores 401
+      // Manejo de errores con mensajes claros para el usuario
+      let errorMessage = "Error al iniciar sesión. Por favor intenta nuevamente.";
+      
       if (error.response?.status === 401) {
-        Alert.alert("Error de autenticación", "Email o contraseña incorrectos. Por favor verifica tus credenciales.");
-      } else {
-        const msg = error.response?.data?.message || error.message || "Error al iniciar sesión. Por favor intenta nuevamente.";
-        Alert.alert("Error", msg);
+        errorMessage = "Contraseña incorrecta o correo incorrecto. Por favor verifica tus credenciales.";
+      } else if (error.response?.status === 404) {
+        errorMessage = "No existe una cuenta con este correo electrónico. Por favor verifica o regístrate.";
+      } else if (error.response?.status === 400 || error.response?.status === 422) {
+        // Manejar errores de validación del backend
+        const validationErrors = error.response?.data?.errors;
+        if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+          const firstError = validationErrors[0];
+          errorMessage = firstError.msg || firstError.message || "Datos inválidos. Por favor verifica tu información.";
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else {
+          errorMessage = "Datos inválidos. Por favor verifica tu información.";
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message && !error.message.includes('Network Error')) {
+        errorMessage = error.message;
       }
+      
+      Alert.alert("Error de autenticación", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -109,21 +128,27 @@ export default function LoginScreen() {
 
   return (
     <BackgroundLayout>
-      <View className="flex-1 justify-center px-6">
-        
-        <View className="items-center mb-10">
-          <View className="w-16 h-16 bg-white/10 rounded-2xl items-center justify-center mb-4 border border-white/20 shadow-md shadow-black/30">
-            <Sparkles size={32} color="#d8b4fe" />
-          </View>
-          <Text className="text-4xl font-bold text-white text-center mb-2">
-            Dream Lodge
-          </Text>
-          <Text className="text-slate-400 text-center text-base">
-            Tu viaje artístico emocional comienza aquí.
-          </Text>
-        </View>
+      <SafeAreaView edges={['top', 'bottom']} className="flex-1">
+        <ScrollView 
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View className="flex-1 px-6 py-6 max-w-md mx-auto w-full">
+            
+            <View className="items-center mb-6">
+              <View className="w-16 h-16 bg-white/10 rounded-2xl items-center justify-center mb-4 border border-white/20 shadow-md shadow-black/30">
+                <Sparkles size={32} color="#d8b4fe" />
+              </View>
+              <Text className="text-4xl font-bold text-white text-center mb-2">
+                Dream Lodge
+              </Text>
+              <Text className="text-slate-400 text-center text-base px-2">
+                Tu viaje artístico emocional comienza aquí.
+              </Text>
+            </View>
 
-        <View className="bg-slate-900/70 border border-slate-700/50 p-6 rounded-3xl space-y-4 shadow-xl shadow-black/50">
+            <View className="bg-slate-900/70 border border-slate-700/50 p-6 rounded-3xl space-y-4 shadow-xl shadow-black/50">
           
           {/* Tabs Visuales */}
           <View className="flex-row mb-6 bg-black/20 p-1 rounded-xl border border-white/10">
@@ -205,7 +230,9 @@ export default function LoginScreen() {
             />
           </View>
         </View>
-      </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </BackgroundLayout>
   );
 }

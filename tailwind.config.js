@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  presets: [require("nativewind/preset")],
   content: [
     "./App.{js,jsx,ts,tsx}",     // <-- FALTABA ESTA LÍNEA (crítica)
     "./app/**/*.{js,jsx,ts,tsx}",

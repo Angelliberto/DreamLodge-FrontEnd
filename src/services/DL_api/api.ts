@@ -36,12 +36,20 @@ axios.interceptors.response.use(
 );
 
 export async function login(data:LoginRequest): Promise<AuthResponse> {
-  const response = await axios.post<AuthResponse>(getBackendEndpoint('/users/login'), data);
+  const response = await axios.post<AuthResponse>(getBackendEndpoint('/users/login'), data, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
   return response.data;
 }
 
 export async function register(data:RegisterRequest): Promise<AuthResponse> {
-  const response = await axios.post<AuthResponse>(getBackendEndpoint('/users/register'), data);
+  const response = await axios.post<AuthResponse>(getBackendEndpoint('/users/register'), data, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
   return response.data;
 }
 

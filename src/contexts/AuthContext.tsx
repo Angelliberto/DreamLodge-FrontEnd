@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await checkTestResultsForUser(parsedUser._id);
       }
     } catch (error) {
-      console.error('Error cargando sesión:', error);
+      // Error silencioso al cargar sesión
     } finally {
       setIsLoading(false);
     }
@@ -49,7 +49,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkTestResultsForUser = async (userId: string) => {
     try {
       const results = await getUserTestResults(userId);
-      console.log('Test results from API:', results);
       
       // Manejar diferentes formatos de respuesta
       let resultsArray: any[] = [];
@@ -69,14 +68,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const hasDeep = resultsArray.some((r: any) => r.testType === 'deep');
         setHasQuickTest(hasQuick);
         setHasDeepTest(hasDeep);
-        console.log('Test status - Quick:', hasQuick, 'Deep:', hasDeep);
       } else {
         setHasTestResults(false);
         setHasQuickTest(false);
         setHasDeepTest(false);
       }
     } catch (error) {
-      console.error('Error verificando resultados del test:', error);
       setHasTestResults(false);
       setHasQuickTest(false);
       setHasDeepTest(false);

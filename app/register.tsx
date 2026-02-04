@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { Calendar, Lock, Mail, Sparkles, User } from "lucide-react-native";
 import React from "react";
 import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { BackgroundLayout } from "../src/components/ui/BackgroundLayout";
 import { Button } from "../src/components/ui/button";
 import { Input } from "../src/components/ui/input";
@@ -14,7 +15,7 @@ export default function RegisterScreen() {
     name: "", email: "", password: "", confirmPassword: "", birthdate: ""
   });
   const [loading, setLoading] = React.useState(false);
-  
+
   // Estados de validación en tiempo real
   const [errors, setErrors] = React.useState({
     name: "",
@@ -65,8 +66,8 @@ export default function RegisterScreen() {
     if (!password.trim()) {
       return "La contraseña es requerida";
     }
-    if (password.length < 6) {
-      return "La contraseña debe tener al menos 6 caracteres";
+    if (password.length < 8) {
+      return "La contraseña debe tener al menos 8 caracteres";
     }
     if (password.length > 50) {
       return "La contraseña no puede tener más de 50 caracteres";
@@ -224,14 +225,29 @@ export default function RegisterScreen() {
       // No resetear loading aquí porque estamos navegando a otra pantalla
       router.replace('/test-selection');
     } catch (error: any) {
-      // Manejo mejorado de errores
-      if (error.response?.status === 401 || error.response?.status === 400) {
-        const msg = error.response?.data?.message || "Error en el registro. Verifica tus datos.";
-        Alert.alert("Error", msg);
-      } else {
-        const msg = error.response?.data?.message || error.message || "Error en el registro. Por favor intenta nuevamente.";
-        Alert.alert("Error", msg);
+      // Manejo de errores con mensajes claros para el usuario
+      let errorMessage = "Error en el registro. Por favor intenta nuevamente.";
+      
+      if (error.response?.status === 400 || error.response?.status === 422) {
+        // Manejar errores de validación del backend
+        const validationErrors = error.response?.data?.errors;
+        if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+          const firstError = validationErrors[0];
+          errorMessage = firstError.msg || firstError.message || "Datos inválidos. Por favor verifica tu información.";
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else {
+          errorMessage = "Datos inválidos. Por favor verifica tu información.";
+        }
+      } else if (error.response?.status === 409) {
+        errorMessage = "Este correo electrónico ya está registrado. Por favor inicia sesión o usa otro correo.";
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message && !error.message.includes('Network Error')) {
+        errorMessage = error.message;
       }
+      
+      Alert.alert("Error en el registro", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -239,16 +255,27 @@ export default function RegisterScreen() {
 
   return (
     <BackgroundLayout>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}>
-        
-        <View className="items-center mb-8 mt-10">
-          <View className="w-14 h-14 bg-white/10 rounded-xl items-center justify-center mb-4 border border-white/20 shadow-md shadow-black/30">
-            <Sparkles size={28} color="#d8b4fe" />
-          </View>
-          <Text className="text-3xl font-bold text-white">Crea tu Dream Lodge</Text>
-        </View>
+      <SafeAreaView edges={['top', 'bottom']} className="flex-1">
+        <ScrollView 
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View className="flex-1 px-6 py-6 max-w-md mx-auto w-full">
+            
+            <View className="items-center mb-6">
+              <View className="w-16 h-16 bg-white/10 rounded-2xl items-center justify-center mb-4 border border-white/20 shadow-md shadow-black/30">
+                <Sparkles size={32} color="#d8b4fe" />
+              </View>
+              <Text className="text-4xl font-bold text-white text-center mb-2">
+                Dream Lodge
+              </Text>
+              <Text className="text-slate-400 text-center text-base px-2">
+                Tu viaje artístico emocional comienza aquí.
+              </Text>
+            </View>
 
-        <View className="bg-slate-900/70 border border-slate-700/50 p-6 rounded-3xl shadow-xl shadow-black/50">
+            <View className="bg-slate-900/70 border border-slate-700/50 p-6 rounded-3xl shadow-xl shadow-black/50">
           
           {/* Tabs Visuales Inversas */}
           <View className="flex-row mb-6 bg-black/20 p-1 rounded-xl border border-white/10">
@@ -381,7 +408,9 @@ export default function RegisterScreen() {
             />
           </View>
         </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </BackgroundLayout>
   );
 }
