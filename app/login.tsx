@@ -10,7 +10,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuth(); 
+  const { login, googleSignIn } = useAuth(); 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -209,6 +209,16 @@ export default function LoginScreen() {
               ) : null}
             </View>
 
+            {/* Enlace de olvidé mi contraseña */}
+            <TouchableOpacity 
+              onPress={() => router.push('./forgot-password')}
+              className="self-end mb-2"
+            >
+              <Text className="text-purple-400 text-sm font-medium">
+                ¿Olvidaste tu contraseña?
+              </Text>
+            </TouchableOpacity>
+
             <Button 
               title="Iniciar Sesión" 
               onPress={handleLogin} 
@@ -226,7 +236,20 @@ export default function LoginScreen() {
               variant="outline" 
               title="Google" 
               icon={<Chrome size={20} color="white" />}
-              onPress={() => {/* Lógica Google */}}
+              onPress={async () => {
+                try {
+                  setLoading(true);
+                  await googleSignIn();
+                  // Esperar un momento para que se actualice hasTestResults
+                  await new Promise(resolve => setTimeout(resolve, 800));
+                  // Redirigir a index.tsx que manejará la redirección automática
+                  router.replace('/');
+                } catch (error: any) {
+                  Alert.alert("Error", error.message || "Error al iniciar sesión con Google");
+                } finally {
+                  setLoading(false);
+                }
+              }}
             />
           </View>
         </View>

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 import { getBackendEndpoint } from "../../config/api";
 import { AuthResponse, LoginRequest, RegisterRequest } from "../../types";
 import { storage } from '../../utils/storage';
@@ -132,4 +133,55 @@ export async function getUserTestResults(userId: string): Promise<any | null> {
     }
     throw error;
   }
+}
+
+export function getGoogleSignInUrl(): string {
+  // For web, use HTTP URL; for mobile, use deep link
+  // Always default to deep link unless explicitly on web
+  let redirectUri: string;
+  
+  // Check if we're on web platform
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    // Use current origin + /auth-callback for web
+    const origin = window.location.origin;
+    redirectUri = `${origin}/auth-callback`;
+    console.log('🌐 getGoogleSignInUrl: Using web redirect URI:', redirectUri);
+  } else {
+    // Use deep link for mobile (iOS, Android, or any non-web platform)
+    redirectUri = 'dreamlodgefrontend://auth';
+    console.log('📱 getGoogleSignInUrl: Using mobile deep link:', redirectUri);
+  }
+  
+  return getBackendEndpoint(`/users/google?redirect_uri=${encodeURIComponent(redirectUri)}`);
+}
+
+export async function googleSignInWithToken(idToken: string): Promise<AuthResponse> {
+  const response = await axios.post<AuthResponse>(
+    getBackendEndpoint('/users/google/token'),
+    { token: idToken }
+  );
+  return response.data;
+}
+
+export async function sendPasswordResetEmail(email: string): Promise<{ message: string }> {
+  const response = await axios.post<{ message: string }>(
+    getBackendEndpoint('/users/forgot-password'),
+    { email }
+  );
+  return response.data;
+}
+
+export async function checkPasswordResetToken(token: string): Promise<{ message: string }> {
+  const response = await axios.get<{ message: string }>(
+    getBackendEndpoint(`/users/check-reset-token?token=${encodeURIComponent(token)}`)
+  );
+  return response.data;
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  const response = await axios.post<{ message: string }>(
+    getBackendEndpoint('/users/reset-password'),
+    { token, newPassword }
+  );
+  return response.data;
 }

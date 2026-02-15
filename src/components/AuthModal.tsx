@@ -18,7 +18,7 @@ interface AuthModalProps {
 
 export function AuthModal({ visible, onClose, defaultTab = 'login' }: AuthModalProps) {
   // 👇 USAMOS EL CONTEXTO AQUÍ
-  const { login, register, hasTestResults } = useAuth(); 
+  const { login, register, googleSignIn, hasTestResults } = useAuth(); 
   
   const [activeTab, setActiveTab] = useState<'login' | 'register'>(defaultTab);
   const [loading, setLoading] = useState(false);
@@ -164,12 +164,29 @@ export function AuthModal({ visible, onClose, defaultTab = 'login' }: AuthModalP
                         </TouchableOpacity>
                     </View>
 
-                    {/* Botón Google (Placeholder) */}
+                    {/* Botón Google */}
                     <Button 
                         variant="outline" 
                         title={activeTab === 'login' ? "Continuar con Google" : "Registrarse con Google"}
                         icon={<Chrome size={18} color="white" />}
                         className="mb-6"
+                        onPress={async () => {
+                          try {
+                            setLoading(true);
+                            await googleSignIn();
+                            await new Promise(resolve => setTimeout(resolve, 800));
+                            onClose();
+                            if (hasTestResults) {
+                              router.replace('/src/FeedScreen');
+                            } else {
+                              router.replace('/test-selection');
+                            }
+                          } catch (error: any) {
+                            Alert.alert("Error", error.message || "Error al iniciar sesión con Google");
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
                     />
 
                     <View className="flex-row items-center mb-6">
