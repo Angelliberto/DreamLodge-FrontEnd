@@ -3,6 +3,7 @@ import { Bot, Menu, Send, Sparkles, User, X } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,7 +13,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomNavigation } from '../src/components/BottomNavigation';
 import { ContextTab } from '../src/components/chat/ContextTab';
 import { ConversationList } from '../src/components/chat/ConversationList';
@@ -46,9 +47,11 @@ export default function AIChatScreen() {
   
   const scrollViewRef = useRef<ScrollView>(null);
   const messagesEndRef = useRef<View>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const insets = useSafeAreaInsets();
   
-  // Bottom navigation height (approximate, adjust if needed)
-  const BOTTOM_NAV_HEIGHT = 70;
+  // Bottom navigation height (icon 24px + text ~12px + padding ~16px + safe area)
+  const BOTTOM_NAV_HEIGHT = 70 + insets.bottom;
 
   // Load conversations and restore current conversation on mount
   useEffect(() => {
@@ -58,16 +61,16 @@ export default function AIChatScreen() {
   // Load messages and context items when conversation changes
   useEffect(() => {
     const updateConversation = async () => {
-      if (currentConversation) {
-        loadMessages(currentConversation.id);
+    if (currentConversation) {
+      loadMessages(currentConversation.id);
         await setCurrentConversation(currentConversation.id);
         // Load context items from the conversation
         setSelectedContextItems(currentConversation.contextItems || []);
-      } else {
-        setMessages([]);
+    } else {
+      setMessages([]);
         await setCurrentConversation(null);
         setSelectedContextItems([]);
-      }
+    }
     };
     updateConversation();
   }, [currentConversation?.id]);
@@ -104,6 +107,26 @@ export default function AIChatScreen() {
     scrollToBottom();
   }, [messages]);
 
+  // Handle keyboard show/hide
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    
+    const keyboardWillShow = Keyboard.addListener(showEvent, (e) => {
+      // Use the keyboard height to position input above it
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    
+    const keyboardWillHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
+
   const loadConversations = async () => {
     try {
       const convs = await getConversations();
@@ -131,9 +154,9 @@ export default function AIChatScreen() {
           setSelectedContextItems(mostRecent.contextItems || []);
         } else {
           // Update current conversation if it still exists
-          const updated = convs.find(c => c.id === currentConversation.id);
-          if (updated) {
-            setCurrentConversationState(updated);
+        const updated = convs.find(c => c.id === currentConversation.id);
+        if (updated) {
+          setCurrentConversationState(updated);
             // Update context items from the updated conversation
             setSelectedContextItems(updated.contextItems || []);
           } else {
@@ -199,7 +222,7 @@ export default function AIChatScreen() {
           setCurrentConversationState(mostRecent);
           await setCurrentConversation(mostRecent.id);
         } else {
-          setCurrentConversationState(null);
+        setCurrentConversationState(null);
           await setCurrentConversation(null);
         }
         setMessages([]);
@@ -247,7 +270,7 @@ export default function AIChatScreen() {
     // Check if item is already in the list
     if (selectedContextItems.some(i => i.id === item.id)) {
       return;
-    }
+      }
     
     const updatedItems = [...selectedContextItems, item];
     setSelectedContextItems(updatedItems);
@@ -302,10 +325,14 @@ export default function AIChatScreen() {
         <StatusBar barStyle="light-content" />
         
         {/* Main Chat Area */}
-        <View className="flex-1 flex-col">
-            <View className="flex-1">
-              {/* Header */}
-              <View className="px-4 pt-3 pb-3 border-b border-slate-800/50 bg-slate-900/50">
+        <KeyboardAvoidingView 
+          className="flex-1"
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
+          <View className="flex-1">
+            {/* Header */}
+            <View className="px-4 pt-3 pb-3 border-b border-slate-800/50 bg-slate-900/50">
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center gap-3 flex-1">
                     <TouchableOpacity
@@ -435,7 +462,7 @@ export default function AIChatScreen() {
                   className="flex-1"
                   contentContainerStyle={{ 
                     padding: 16, 
-                    paddingBottom: 120
+                    paddingBottom: 20
                   }}
                   showsVerticalScrollIndicator={true}
                   keyboardShouldPersistTaps="handled"
@@ -460,13 +487,13 @@ export default function AIChatScreen() {
                         }`}
                         style={{ maxWidth: '75%' }}
                       >
-                        <Text 
-                          className={`text-sm leading-5 ${
-                            message.sender === 'user' ? 'text-white' : 'text-slate-100'
-                          }`}
-                        >
+                            <Text 
+                              className={`text-sm leading-5 ${
+                                message.sender === 'user' ? 'text-white' : 'text-slate-100'
+                              }`}
+                            >
                           {message.text || ''}
-                        </Text>
+                            </Text>
                         <Text className={`text-xs mt-1.5 ${
                           message.sender === 'user' ? 'text-purple-200' : 'text-slate-400'
                         }`}>
@@ -501,86 +528,79 @@ export default function AIChatScreen() {
                 </ScrollView>
               )}
 
-            </View>
-
-            {/* Input Area - Fixed above bottom navigation */}
+            {/* Input Area - Natural bottom position */}
             {currentConversation && (
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={BOTTOM_NAV_HEIGHT}
+              <View 
+                className="px-4 pt-2 pb-2 border-t border-slate-800/50 bg-slate-900/50"
+                style={{
+                  paddingBottom: keyboardHeight === 0 ? BOTTOM_NAV_HEIGHT - insets.bottom : insets.bottom + 8
+                }}
               >
-                <View 
-                  className="px-4 pt-2 border-t border-slate-800/50 bg-slate-900/50"
-                  style={{ 
-                    paddingBottom: 8,
-                    marginBottom: BOTTOM_NAV_HEIGHT
-                  }}
-                >
-                  {/* Selected Context Items Preview */}
-                  {selectedContextItems.length > 0 && (
-                    <View className="mb-2 flex-row items-center gap-2">
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        <View className="flex-row gap-2">
-                          {selectedContextItems.map((item) => (
-                            <View
-                              key={item.id}
-                              className="bg-purple-600/20 border border-purple-500/30 rounded-lg px-2 py-1 flex-row items-center gap-1"
-                            >
-                              <Text className="text-purple-300 text-xs" numberOfLines={1}>
-                                {item.title}
-                              </Text>
-                              <TouchableOpacity onPress={() => handleContextItemRemove(item.id)}>
-                                <X size={12} color="#c084fc" />
-                              </TouchableOpacity>
-                            </View>
-                          ))}
-                        </View>
-                      </ScrollView>
-                    </View>
-                  )}
+                    {/* Selected Context Items Preview */}
+                    {selectedContextItems.length > 0 && (
+                      <View className="mb-2 flex-row items-center gap-2">
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                          <View className="flex-row gap-2">
+                            {selectedContextItems.map((item) => (
+                              <View
+                                key={item.id}
+                                className="bg-purple-600/20 border border-purple-500/30 rounded-lg px-2 py-1 flex-row items-center gap-1"
+                              >
+                                <Text className="text-purple-300 text-xs" numberOfLines={1}>
+                                  {item.title}
+                                </Text>
+                                <TouchableOpacity onPress={() => handleContextItemRemove(item.id)}>
+                                  <X size={12} color="#c084fc" />
+                                </TouchableOpacity>
+                              </View>
+                            ))}
+                          </View>
+                        </ScrollView>
+                      </View>
+                    )}
 
-                  <View className="flex-row items-end gap-2">
-                    <View className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 max-h-24 min-h-12">
-                      <TextInput
-                        value={inputText}
-                        onChangeText={setInputText}
-                        placeholder="Escribe tu mensaje..."
-                        placeholderTextColor="#64748b"
-                        className="text-white text-sm"
+                    <View className="flex-row items-end gap-2">
+                      <View className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 max-h-24 min-h-12">
+                        <TextInput
+                          value={inputText}
+                          onChangeText={setInputText}
+                          placeholder="Escribe tu mensaje..."
+                          placeholderTextColor="#64748b"
+                          className="text-white text-sm"
+                          style={{ 
+                            textAlignVertical: 'center',
+                            paddingVertical: 0,
+                            minHeight: 24
+                          }}
+                          multiline
+                          onSubmitEditing={handleSend}
+                          returnKeyType="send"
+                          blurOnSubmit={false}
+                          editable={!isLoading}
+                        />
+                      </View>
+                      <TouchableOpacity
+                        onPress={handleSend}
+                        disabled={!inputText.trim() || isLoading}
+                        className={`rounded-xl items-center justify-center ${
+                          inputText.trim() && !isLoading
+                            ? 'bg-purple-600'
+                            : 'bg-slate-700/50'
+                        }`}
                         style={{ 
-                          textAlignVertical: 'center',
-                          paddingVertical: 0,
-                          minHeight: 24
+                          width: 48, 
+                          height: 48,
+                          minHeight: 48
                         }}
-                        multiline
-                        onSubmitEditing={handleSend}
-                        returnKeyType="send"
-                        blurOnSubmit={false}
-                        editable={!isLoading}
-                      />
+                      >
+                        <Send size={18} color={inputText.trim() && !isLoading ? 'white' : '#64748b'} />
+                      </TouchableOpacity>
                     </View>
-                    <TouchableOpacity
-                      onPress={handleSend}
-                      disabled={!inputText.trim() || isLoading}
-                      className={`rounded-xl items-center justify-center ${
-                        inputText.trim() && !isLoading
-                          ? 'bg-purple-600'
-                          : 'bg-slate-700/50'
-                      }`}
-                      style={{ 
-                        width: 48, 
-                        height: 48,
-                        minHeight: 48
-                      }}
-                    >
-                      <Send size={18} color={inputText.trim() && !isLoading ? 'white' : '#64748b'} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </KeyboardAvoidingView>
+              </View>
             )}
           </View>
-        <BottomNavigation />
+        </KeyboardAvoidingView>
+        {keyboardHeight === 0 && <BottomNavigation />}
       </SafeAreaView>
     </BackgroundLayout>
   );

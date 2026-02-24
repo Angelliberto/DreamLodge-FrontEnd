@@ -179,6 +179,13 @@ export async function googleSignInWithToken(idToken: string): Promise<AuthRespon
   return response.data;
 }
 
+export async function exchangeAuthSession(sessionCode: string): Promise<AuthResponse> {
+  const response = await axios.get<AuthResponse>(
+    getBackendEndpoint(`/users/google/exchange?session=${encodeURIComponent(sessionCode)}`)
+  );
+  return response.data;
+}
+
 export async function sendPasswordResetEmail(email: string): Promise<{ message: string }> {
   const response = await axios.post<{ message: string }>(
     getBackendEndpoint('/users/forgot-password'),
