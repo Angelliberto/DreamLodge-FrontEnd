@@ -325,14 +325,9 @@ export default function AIChatScreen() {
         <StatusBar barStyle="light-content" />
         
         {/* Main Chat Area */}
-        <KeyboardAvoidingView 
-          className="flex-1"
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={0}
-        >
-          <View className="flex-1">
-            {/* Header */}
-            <View className="px-4 pt-3 pb-3 border-b border-slate-800/50 bg-slate-900/50">
+        <View className="flex-1">
+          {/* Header - Fixed */}
+          <View className="px-4 pt-3 pb-3 border-b border-slate-800/50 bg-slate-900/50">
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center gap-3 flex-1">
                     <TouchableOpacity
@@ -434,6 +429,12 @@ export default function AIChatScreen() {
                 </>
               )}
 
+            {/* Keyboard Avoiding Content */}
+            <KeyboardAvoidingView
+              className="flex-1"
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={0}
+            >
               {/* Messages Area - Scrollable */}
               {conversations.length === 0 ? (
                 <View className="flex-1 items-center justify-center px-4">
@@ -533,7 +534,7 @@ export default function AIChatScreen() {
               <View 
                 className="px-4 pt-2 pb-2 border-t border-slate-800/50 bg-slate-900/50"
                 style={{
-                  paddingBottom: keyboardHeight === 0 ? BOTTOM_NAV_HEIGHT - insets.bottom : insets.bottom + 8
+                  marginBottom: keyboardHeight === 0 ? BOTTOM_NAV_HEIGHT : 0
                 }}
               >
                     {/* Selected Context Items Preview */}
@@ -598,8 +599,8 @@ export default function AIChatScreen() {
                     </View>
               </View>
             )}
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
         {keyboardHeight === 0 && <BottomNavigation />}
       </SafeAreaView>
     </BackgroundLayout>
