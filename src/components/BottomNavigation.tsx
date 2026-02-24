@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from 'expo-router';
 import { Brain, Film, MessageSquare, User } from 'lucide-react-native';
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,15 +9,14 @@ export function BottomNavigation() {
   const router = useRouter();
   const pathname = usePathname();
   const { hasTestResults } = useAuth();
-
-  // Mostrar la navegación si el usuario ha completado el test, está en test_results o en test-selection
-  const shouldShow = hasTestResults || pathname?.includes('test_results') || pathname?.includes('test-selection');
   
-  if (!shouldShow) {
-    return null;
-  }
+  // Memoizar shouldShow para evitar recálculos
+  const shouldShow = useMemo(() => {
+    return hasTestResults || pathname?.includes('test_results') || pathname?.includes('test-selection');
+  }, [hasTestResults, pathname]);
 
-  const navItems = [
+  // Memoizar navItems para evitar recrear en cada render
+  const navItems = useMemo(() => [
     { 
       icon: Film, 
       label: 'Explorar', 
@@ -42,11 +41,16 @@ export function BottomNavigation() {
       route: '/user_profile',
       active: pathname === '/user_profile'
     },
-  ];
+  ], [pathname]);
 
-  const handlePress = (route: string) => {
+  // Memoizar handlePress
+  const handlePress = useCallback((route: string) => {
     router.push(route as any);
-  };
+  }, [router]);
+  
+  if (!shouldShow) {
+    return null;
+  }
 
   return (
     <View 

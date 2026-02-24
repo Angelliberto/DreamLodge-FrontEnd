@@ -1,11 +1,9 @@
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
-import { useAuth } from '../src/contexts/AuthContext';
+import type { User } from '../src/types';
 import { storage } from '../src/utils/storage';
-import { getUserTestResults } from '../services/DL_api/api';
-import type { User } from '../types';
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
@@ -16,10 +14,6 @@ export default function AuthCallbackScreen() {
       try {
         const token = params.token as string;
         const userDataStr = params.user as string;
-
-        console.log('🌐 Web Auth Callback: Processing');
-        console.log('Token:', token ? 'Present' : 'Missing');
-        console.log('User data:', userDataStr ? 'Present' : 'Missing');
 
         if (token && userDataStr) {
           try {
@@ -37,15 +31,15 @@ export default function AuthCallbackScreen() {
               router.replace('/');
             }
           } catch (parseError) {
-            console.error('❌ Web Auth Callback: Error parsing data:', parseError);
+            console.error('Web Auth Callback: Error parsing data:', parseError);
             router.replace('/login');
           }
         } else {
-          console.error('❌ Web Auth Callback: Missing token or user data');
+          console.error('Web Auth Callback: Missing token or user data');
           router.replace('/login');
         }
       } catch (error) {
-        console.error('❌ Web Auth Callback: Error:', error);
+        console.error(' Web Auth Callback: Error:', error);
         router.replace('/login');
       }
     };

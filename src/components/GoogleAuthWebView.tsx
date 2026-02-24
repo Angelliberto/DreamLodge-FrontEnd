@@ -15,8 +15,6 @@ export function GoogleAuthWebView({ visible, authUrl, onClose, onSuccess }: Goog
   const [loading, setLoading] = useState(true);
 
   const extractTokenAndUser = (url: string) => {
-    console.log('🔍 WebView: Extracting token and user from URL:', url);
-    
     let token: string | null = null;
     let userData: string | null = null;
     
@@ -25,13 +23,11 @@ export function GoogleAuthWebView({ visible, authUrl, onClose, onSuccess }: Goog
     const tokenMatch = url.match(/[?&]token=([^&]+)/);
     if (tokenMatch) {
       token = decodeURIComponent(tokenMatch[1]);
-      console.log('✅ WebView: Token extracted');
     }
     
     const userMatch = url.match(/[?&]user=([^&]+)/);
     if (userMatch) {
       userData = decodeURIComponent(userMatch[1]);
-      console.log('✅ WebView: User data extracted');
     }
     
     return { token, userData };
@@ -39,50 +35,36 @@ export function GoogleAuthWebView({ visible, authUrl, onClose, onSuccess }: Goog
 
   const handleNavigationStateChange = (navState: WebViewNavigation) => {
     const { url } = navState;
-    console.log('🔗 WebView navigation to:', url);
 
     // Check if the URL is our deep link
     if (url && url.includes('dreamlodgefrontend://auth')) {
-      console.log('✅ WebView: Detected deep link pattern');
-      
       try {
         const { token, userData } = extractTokenAndUser(url);
 
         if (token && userData) {
-          console.log('✅ WebView: Token and user data found, calling onSuccess');
           onSuccess(token, userData);
           onClose();
-        } else {
-          console.error('❌ WebView: Missing token or user data in deep link');
-          console.error('Token:', token ? 'Present' : 'Missing');
-          console.error('User data:', userData ? 'Present' : 'Missing');
         }
-      } catch (error) {
-        console.error('❌ WebView: Error parsing deep link:', error);
+      } catch {
+        // Silent error
       }
     }
   };
 
   const handleShouldStartLoadWithRequest = (request: { url: string }) => {
     const { url } = request;
-    console.log('🔗 WebView should start load:', url);
 
     // If it's our deep link, intercept it
     if (url && url.includes('dreamlodgefrontend://auth')) {
-      console.log('✅ WebView: Intercepting deep link in shouldStartLoadWithRequest');
-      
       try {
         const { token, userData } = extractTokenAndUser(url);
         
         if (token && userData) {
-          console.log('✅ WebView: Token and user data found, calling onSuccess');
           onSuccess(token, userData);
           onClose();
-        } else {
-          console.error('❌ WebView: Missing token or user data');
         }
-      } catch (error) {
-        console.error('❌ WebView: Error parsing deep link:', error);
+      } catch {
+        // Silent error
       }
       
       return false; // Prevent WebView from loading the deep link
@@ -123,7 +105,7 @@ export function GoogleAuthWebView({ visible, authUrl, onClose, onSuccess }: Goog
           onLoadEnd={() => setLoading(false)}
           onError={(syntheticEvent) => {
             const { nativeEvent } = syntheticEvent;
-            console.error('❌ WebView error:', nativeEvent);
+            console.error('WebView error:', nativeEvent);
             setLoading(false);
           }}
           // Enable JavaScript

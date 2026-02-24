@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, usePathname } from 'expo-router';
-import { Brain, LogOut, Sparkles, Star } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { LogOut, Sparkles, Star } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +17,7 @@ export function NavigationBar({
   showLogout = true 
 }: NavigationBarProps) {
   const router = useRouter();
-  const { user, logout, hasTestResults } = useAuth();
+  const { user, logout } = useAuth();
 
   const handleAuthPress = () => {
     router.push('/login');
@@ -27,14 +27,6 @@ export function NavigationBar({
     await logout();
     router.replace('/login');
   };
-
-  const handleTestResults = () => {
-    router.push('/test_results');
-  };
-
-  const pathname = usePathname();
-  // Si estamos en test_results, asumimos que el usuario tiene resultados
-  const showNavigationButtons = hasTestResults || pathname?.includes('test_results');
 
   if (variant === 'simple') {
     return (
@@ -54,16 +46,6 @@ export function NavigationBar({
           
           {user && (
             <View className="flex-row items-center gap-2">
-              {/* Solo mostrar botón Resultados si NO estamos en la página de resultados */}
-              {showNavigationButtons && !pathname?.includes('test_results') && (
-                <TouchableOpacity 
-                  onPress={handleTestResults} 
-                  className="bg-purple-500/10 px-3 py-1.5 rounded-lg border border-purple-500/20 flex-row items-center gap-1.5"
-                >
-                  <Brain size={12} color="#c084fc" />
-                  <Text className="text-purple-300 font-medium text-xs">Resultados</Text>
-                </TouchableOpacity>
-              )}
               <TouchableOpacity 
                 onPress={handleLogout} 
                 className="bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 flex-row items-center gap-1.5"
@@ -101,15 +83,6 @@ export function NavigationBar({
       
       {user && (
         <View className="flex-row items-center gap-2">
-          {hasTestResults && (
-            <TouchableOpacity 
-              onPress={handleTestResults} 
-              className="bg-purple-500/10 px-3 py-1.5 rounded-lg border border-purple-500/20 flex-row items-center gap-1.5"
-            >
-              <Brain size={12} color="#c084fc" />
-              <Text className="text-purple-300 font-medium text-xs">Resultados</Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity 
             onPress={handleLogout} 
             className="bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 flex-row items-center gap-1.5"

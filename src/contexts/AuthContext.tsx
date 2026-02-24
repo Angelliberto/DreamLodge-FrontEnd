@@ -1,11 +1,12 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { getBackendEndpoint } from '../config/api';
 import { login as apiLogin, register as apiRegister, getGoogleSignInUrl, getUserTestResults } from '../services/DL_api/api';
 import { AuthResponse, LoginRequest, RegisterRequest, User } from '../types';
+import { cache } from '../utils/cache';
 import { storage } from '../utils/storage';
 
 // Complete auth session when app loads
@@ -46,15 +47,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return; // Don't set up deep link listener for web
     }
 
-    console.log('📱 AuthProvider: Setting up deep link listener for mobile');
-
     // Handle deep links when app is already open
     const subscription = Linking.addEventListener('url', (event) => {
       const { url } = event;
-      console.log('🔗 Deep link received:', url);
       
       if (url && url.includes('dreamlodgefrontend://auth')) {
-        console.log('✅ Deep link matches Google OAuth pattern');
         handleDeepLinkAuth(url);
       }
     });
@@ -62,15 +59,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Check if app was opened via deep link
     Linking.getInitialURL().then((url) => {
       if (url && url.includes('dreamlodgefrontend://auth')) {
-        console.log('🔗 Deep link: Initial URL:', url);
         handleDeepLinkAuth(url);
       }
-    }).catch((error) => {
-      console.error('Deep link: Error getting initial URL:', error);
+    }).catch(() => {
+      // Silent error
     });
 
     return () => {
-      console.log('AuthProvider: Removing deep link listener');
       subscription.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,25 +73,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleDeepLinkAuth = async (url: string) => {
     try {
-      console.log('📱 Processing deep link auth:', url);
       const parsedUrl = Linking.parse(url);
       const token = parsedUrl.queryParams?.token as string;
       const userDataStr = parsedUrl.queryParams?.user as string;
 
-      console.log('📱 Token found:', token ? 'Yes' : 'No');
-      console.log('📱 User data found:', userDataStr ? 'Yes' : 'No');
-
       if (token && userDataStr) {
-        console.log('✅ Google Sign-In: Processing token and user data from deep link');
         const user = JSON.parse(decodeURIComponent(userDataStr)) as User;
         await saveSession(token, user);
         await checkTestResultsForUser(user._id);
-        console.log('✅ Google Sign-In: Completed successfully via deep link');
-      } else {
-        console.error('❌ Deep link: Missing token or user data');
       }
-    } catch (error: any) {
-      console.error('❌ Deep link: Error processing auth:', error);
+    } catch {
+      // Silent error
     }
   };
 
@@ -109,34 +96,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (token && userData) {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
-        // Verificar si tiene resultados del test
+        // Check if user has test results
         await checkTestResultsForUser(parsedUser._id);
       }
     } catch {
-      // Error silencioso al cargar sesión
+      // Silent error when loading session
     } finally {
       setIsLoading(false);
     }
   };
 
-  const checkTestResultsForUser = async (userId: string) => {
+  const checkTestResultsForUser = useCallback(async (userId: string) => {
     try {
-      const results = await getUserTestResults(userId);
+      // Check cache first to avoid unnecessary calls
+      const cacheKey = `testResults:${userId}`;
+      const cached = cache.get<any>(cacheKey);
       
-      // Manejar diferentes formatos de respuesta
+      let results: any = cached;
+      if (!cached) {
+        results = await getUserTestResults(userId);
+      }
+      
+      // Handle different response formats
       let resultsArray: any[] = [];
       if (Array.isArray(results)) {
         resultsArray = results;
       } else if (results && typeof results === 'object' && results.data && Array.isArray(results.data)) {
         resultsArray = results.data;
       } else if (results && typeof results === 'object' && results.scores) {
-        // Si es un objeto único con scores, convertirlo a array
+        // If it's a single object with scores, convert it to array
         resultsArray = [results];
       }
       
       if (resultsArray.length > 0) {
         setHasTestResults(true);
-        // Verificar qué tipos de test tiene el usuario
+        // Check what types of tests the user has
         const hasQuick = resultsArray.some((r: any) => r.testType === 'quick' || (!r.testType && r.scores));
         const hasDeep = resultsArray.some((r: any) => r.testType === 'deep');
         setHasQuickTest(hasQuick);
@@ -151,46 +145,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setHasQuickTest(false);
       setHasDeepTest(false);
     }
-  };
+  }, []);
 
-  const checkTestResults = async () => {
+  const saveSession = useCallback(async (token: string, user: User) => {
+    await storage.setItem('userToken', token);
+    await storage.setItem('userProfile', JSON.stringify(user));
+    setUser(user);
+  }, []);
+
+  const checkTestResults = useCallback(async () => {
     if (user?._id) {
       await checkTestResultsForUser(user._id);
     }
-  };
+  }, [user?._id, checkTestResultsForUser]);
 
-  const login = async (data: LoginRequest) => {
+  const login = useCallback(async (data: LoginRequest) => {
     try {
       const response: AuthResponse = await apiLogin(data);
       if (response.token) {
         await saveSession(response.token, response.user);
-        // Verificar resultados del test después del login
+        // Check test results after login
         await checkTestResultsForUser(response.user._id);
       }
     } catch (error) {
       throw error;
     }
-  };
+  }, [checkTestResultsForUser, saveSession]);
 
-  const register = async (data: RegisterRequest) => {
+  const register = useCallback(async (data: RegisterRequest) => {
     try {
       const response: AuthResponse = await apiRegister(data);
       if (response.token) {
         await saveSession(response.token, response.user);
-        // Usuario nuevo no tiene resultados
+        // New user has no results
         setHasTestResults(false);
       }
     } catch (error) {
       throw error;
     }
-  };
+  }, [saveSession]);
 
-  const googleSignIn = async () => {
+  const googleSignIn = useCallback(async () => {
     try {
       if (isWeb) {
         // For web, use OAuth flow
         const authUrl = getGoogleSignInUrl();
-        console.log('🌐 Web: Opening OAuth in same window');
         if (typeof window !== 'undefined') {
           window.location.href = authUrl;
         }
@@ -200,10 +199,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // This opens the system browser which Google accepts (not a WebView)
         const redirectUri = Linking.createURL('auth', { scheme: 'dreamlodgefrontend' });
         const authUrl = getBackendEndpoint(`/users/google?redirect_uri=${encodeURIComponent(redirectUri)}`);
-        
-        console.log('📱 Mobile: Using WebBrowser.openAuthSessionAsync');
-        console.log('📱 Auth URL:', authUrl);
-        console.log('📱 Redirect URI:', redirectUri);
 
         try {
           // Complete any existing auth session first
@@ -213,9 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Google will accept this because it's a real browser
           const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
 
-          console.log('📱 WebBrowser result type:', result.type);
           const resultUrl = 'url' in result ? result.url : null;
-          console.log('📱 WebBrowser result URL:', resultUrl || 'No URL');
 
           if (result.type === 'success' && resultUrl) {
             // Parse the redirect URL to extract token and user data
@@ -223,63 +216,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const token = parsedUrl.queryParams?.token as string;
             const userDataStr = parsedUrl.queryParams?.user as string;
 
-            console.log('📱 Token found:', token ? 'Yes' : 'No');
-            console.log('📱 User data found:', userDataStr ? 'Yes' : 'No');
-
             if (token && userDataStr) {
-              console.log('✅ Google Sign-In: Processing token and user data');
               const user = JSON.parse(decodeURIComponent(userDataStr)) as User;
               await saveSession(token, user);
               await checkTestResultsForUser(user._id);
-              console.log('✅ Google Sign-In: Completed successfully');
             } else {
               throw new Error('Missing token or user data in redirect');
             }
           } else if (result.type === 'cancel' || result.type === 'dismiss') {
-            console.log('📱 User cancelled or dismissed the login flow');
             return; // Don't throw error for user cancellation
           } else {
             throw new Error(`Authentication failed: ${result.type}`);
           }
         } catch (error: any) {
-          console.error('❌ Google Sign-In: Error in WebBrowser:', error);
           throw error;
         }
       }
     } catch (error: any) {
-      console.error('❌ Google Sign-In: Error:', error);
       throw error;
     }
-  };
+  }, [checkTestResultsForUser, saveSession]);
 
-  const saveSession = async (token: string, user: User) => {
-    await storage.setItem('userToken', token);
-    await storage.setItem('userProfile', JSON.stringify(user));
-    setUser(user);
-  };
-
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await storage.removeItem('userToken');
     await storage.removeItem('userProfile');
+    // Clear user-related cache
+    cache.deleteByPattern(/^favorites|^pending|^testResults:/);
+    // Clear chat current conversation
+    await storage.removeItem('chat_current_conversation');
     setUser(null);
     setHasTestResults(false);
     setHasQuickTest(false);
     setHasDeepTest(false);
-  };
+  }, []);
+
+  // Memoize context value to avoid unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    user, 
+    isLoading, 
+    hasTestResults, 
+    hasQuickTest, 
+    hasDeepTest,
+    login, 
+    register, 
+    googleSignIn,
+    logout, 
+    checkTestResults 
+  }), [user, isLoading, hasTestResults, hasQuickTest, hasDeepTest, login, register, googleSignIn, logout, checkTestResults]);
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isLoading, 
-      hasTestResults, 
-      hasQuickTest, 
-      hasDeepTest,
-      login, 
-      register, 
-      googleSignIn,
-      logout, 
-      checkTestResults 
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
@@ -287,6 +273,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth debe usarse dentro de AuthProvider');
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }

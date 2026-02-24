@@ -88,7 +88,7 @@ export function AuthModal({ visible, onClose, defaultTab = 'login' }: AuthModalP
         onClose();
         // Redirigir según si tiene test o no
         if (hasTestResults) {
-          router.replace('/src/FeedScreen');
+          router.replace('/FeedScreen');
         } else {
           router.replace('/test-selection');
         }
@@ -177,7 +177,7 @@ export function AuthModal({ visible, onClose, defaultTab = 'login' }: AuthModalP
                             await new Promise(resolve => setTimeout(resolve, 800));
                             onClose();
                             if (hasTestResults) {
-                              router.replace('/src/FeedScreen');
+                              router.replace('/FeedScreen');
                             } else {
                               router.replace('/test-selection');
                             }

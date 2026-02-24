@@ -37,15 +37,40 @@ const DIMENSION_ICONS: Record<string, any> = {
 };
 
 const SUBFACET_NAMES: Record<string, string> = {
+  // Openness
   imagination: 'Imaginación',
-  artistic_interests: 'Intereses Artísticos',
-  emotionality: 'Emocionalidad',
-  adventurousness: 'Aventura',
-  intellect: 'Intelecto'
+  aesthetics: 'Estética',
+  feelings: 'Sentimientos',
+  intellectual_curiosity: 'Curiosidad Intelectual',
+  values_and_new_ideas: 'Valores e Ideas Nuevas',
+  // Conscientiousness
+  order: 'Orden',
+  competence: 'Competencia',
+  dutifulness: 'Deber',
+  self_discipline: 'Autodisciplina',
+  deliberation: 'Deliberación',
+  // Extraversion
+  friendliness: 'Amigabilidad',
+  gregariousness: 'Gregarismo',
+  assertiveness: 'Asertividad',
+  activity: 'Actividad',
+  excitement_seeking: 'Búsqueda de Emoción',
+  // Agreeableness
+  trust: 'Confianza',
+  morality: 'Moralidad',
+  altruism: 'Altruismo',
+  cooperation: 'Cooperación',
+  modesty: 'Modestia',
+  // Neuroticism
+  anxiety: 'Ansiedad',
+  anger: 'Ira',
+  depression: 'Depresión',
+  self_consciousness: 'Autoconciencia',
+  immoderation: 'Inmoderación'
 };
 
 function getProfileDescription(dimensions: Record<string, number>): { profile: string; description: string; recommendations: string[] } {
-  const openness = (dimensions.openness || 0) / 20; // Convertir de 0-100 a 0-5
+  const openness = (dimensions.openness || 0) / 20; // Convert from 0-100 to 0-5
   const extraversion = (dimensions.extraversion || 0) / 20;
   const neuroticism = (dimensions.neuroticism || 0) / 20;
 
@@ -118,37 +143,85 @@ export default function TestResultsScreen() {
             const latestResult = apiResults[0];
             // Transform backend format (scores.openness.total) to frontend format (dimensions.openness)
             const dimensions: Record<string, number> = {};
+            const subfacets: Record<string, Record<string, number[]>> = {};
+            
             if (latestResult.scores) {
-              // Convert scores structure to dimensions
+              // Convert scores structure to dimensions and extract subfacets
               Object.keys(latestResult.scores).forEach((dimension) => {
                 const scoreObj = latestResult.scores[dimension];
                 if (scoreObj && typeof scoreObj.total === 'number') {
                   // Backend stores total, convert to 0-5 scale if needed
                   dimensions[dimension] = scoreObj.total;
+                  
+                  // Extract subfacets if they exist (for deep test)
+                  if (latestResult.testType === 'deep' && scoreObj) {
+                    subfacets[dimension] = {};
+                    // Iterate through all properties of scoreObj (excluding 'total')
+                    Object.keys(scoreObj).forEach((key) => {
+                      if (key !== 'total' && typeof scoreObj[key] === 'number') {
+                        // Convert from normalized 0-5 scale back to -2 to +2 scale
+                        // Then create an array with this value (frontend expects arrays)
+                        const normalizedValue = scoreObj[key];
+                        const originalValue = ((normalizedValue / 5) * 4) - 2;
+                        // Store as array to match frontend format
+                        subfacets[dimension][key] = [originalValue];
+                      }
+                    });
+                  }
                 }
               });
             }
             
-            setResults({
+            const resultData: any = {
               dimensions,
               testType: latestResult.testType || 'quick',
               timestamp: latestResult.createdAt
-            });
+            };
+            
+            // Add subfacets only if it's a deep test and we have subfacets
+            if (latestResult.testType === 'deep' && Object.keys(subfacets).length > 0) {
+              resultData.subfacets = subfacets;
+            }
+            
+            setResults(resultData);
           } else if (apiResults && !Array.isArray(apiResults) && apiResults.scores) {
             // Single result object with scores
             const dimensions: Record<string, number> = {};
+            const subfacets: Record<string, Record<string, number[]>> = {};
+            
             Object.keys(apiResults.scores).forEach((dimension) => {
               const scoreObj = apiResults.scores[dimension];
               if (scoreObj && typeof scoreObj.total === 'number') {
                 dimensions[dimension] = scoreObj.total;
+                
+                // Extract subfacets if they exist (for deep test)
+                if (apiResults.testType === 'deep' && scoreObj) {
+                  subfacets[dimension] = {};
+                  Object.keys(scoreObj).forEach((key) => {
+                    if (key !== 'total' && typeof scoreObj[key] === 'number') {
+                      // Convert from normalized 0-5 scale back to -2 to +2 scale
+                      const normalizedValue = scoreObj[key];
+                      const originalValue = ((normalizedValue / 5) * 4) - 2;
+                      // Store as array to match frontend format
+                      subfacets[dimension][key] = [originalValue];
+                    }
+                  });
+                }
               }
             });
             
-            setResults({
+            const resultData: any = {
               dimensions,
               testType: apiResults.testType || 'quick',
               timestamp: apiResults.createdAt
-            });
+            };
+            
+            // Add subfacets only if it's a deep test and we have subfacets
+            if (apiResults.testType === 'deep' && Object.keys(subfacets).length > 0) {
+              resultData.subfacets = subfacets;
+            }
+            
+            setResults(resultData);
           } else {
             Alert.alert('Sin resultados', 'No se encontraron resultados del test.');
             router.back();
@@ -177,7 +250,7 @@ export default function TestResultsScreen() {
     }
   };
 
-  // Los scores ya vienen en escala 0-5
+  // Scores already come in 0-5 scale
   const normalizedDimensions: Record<string, number> = results.dimensions || {};
 
   const profile = getProfileDescription(results.dimensions || {});
@@ -373,7 +446,7 @@ export default function TestResultsScreen() {
                       <Text className="text-white font-semibold mb-4">Subfacetas Detalladas</Text>
                       {Object.entries(results.subfacets[selectedDimension]).map(([subfacet, scores]: [string, any]) => {
                         const average = scores.reduce((sum: number, val: number) => sum + val, 0) / scores.length;
-                        const normalizedScore = ((average + 2) / 4) * 5; // Convertir de -2 a +2 a 0-5
+                        const normalizedScore = ((average + 2) / 4) * 5; // Convert from -2 to +2 to 0-5
                         const subfacetName = SUBFACET_NAMES[subfacet] || subfacet;
                         
                         return (
