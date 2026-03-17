@@ -360,20 +360,7 @@ export default function UserProfileScreen() {
                 </View>
               </View>
 
-              <View className="border-t border-slate-700/50 pt-3 mt-2">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-2">
-                    <Shield size={16} color="#64748b" />
-                    <Text className="text-slate-400 text-xs">Autenticación de dos factores</Text>
-                  </View>
-                  <View className="flex-row items-center gap-2">
-                    <Text className="text-slate-500 text-xs">Desactivado</Text>
-                    <TouchableOpacity className="bg-purple-600/20 px-3 py-1 rounded-lg border border-purple-500/30">
-                      <Text className="text-purple-300 text-xs font-medium">Activar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
+              
             </View>
           </View>
 
