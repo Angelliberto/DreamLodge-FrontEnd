@@ -35,7 +35,7 @@ export function FormInputField<T extends FieldValues>({
 
   return (
     <View>
-      <Text className="text-slate-300 mb-1.5 text-sm font-medium">{label}</Text>
+      <Text className="text-slate-300 py-2 text-sm font-medium">{label}</Text>
 
       <View className="relative">
         <Controller
