@@ -186,9 +186,15 @@ export default function UserProfileScreen() {
           const results = await getUserTestResults(user._id);
           if (results && Array.isArray(results) && results.length > 0) {
             const latestResult = results[0];
-            const dimensions: Record<string, number> = {};
-            
-            if (latestResult.scores) {
+            let dimensions: Record<string, number> = {};
+
+            if (
+              latestResult.dimensions &&
+              typeof latestResult.dimensions === 'object' &&
+              Object.keys(latestResult.dimensions).length > 0
+            ) {
+              dimensions = { ...latestResult.dimensions };
+            } else if (latestResult.scores) {
               Object.keys(latestResult.scores).forEach((dimension) => {
                 const scoreObj = latestResult.scores[dimension];
                 if (scoreObj && typeof scoreObj.total === 'number') {
@@ -196,7 +202,7 @@ export default function UserProfileScreen() {
                 }
               });
             }
-            
+
             setTestResults({ dimensions });
             setProfile(getProfileDescription(dimensions));
           }

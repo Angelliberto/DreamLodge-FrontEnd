@@ -9,12 +9,15 @@ interface NavigationBarProps {
   variant?: 'default' | 'simple';
   showAuth?: boolean;
   showLogout?: boolean;
+  /** Botón Cancelar a la izquierda de Salir (p. ej. salir del test sin guardar). */
+  onCancel?: () => void;
 }
 
-export function NavigationBar({ 
-  variant = 'default', 
+export function NavigationBar({
+  variant = 'default',
   showAuth = true,
-  showLogout = true 
+  showLogout = true,
+  onCancel
 }: NavigationBarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -44,15 +47,25 @@ export function NavigationBar({
             <Text className="text-xl font-extrabold text-white">DREAM LODGE</Text>
           </View>
           
-          {user && (
+          {(onCancel || user) && (
             <View className="flex-row items-center gap-2">
-              <TouchableOpacity 
-                onPress={handleLogout} 
-                className="bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 flex-row items-center gap-1.5"
-              >
-                <LogOut size={12} color="#ef4444" />
-                <Text className="text-red-400 font-medium text-xs">Salir</Text>
-              </TouchableOpacity>
+              {onCancel ? (
+                <TouchableOpacity
+                  onPress={onCancel}
+                  className="flex-row items-center gap-1.5 rounded-lg border border-slate-600/50 bg-slate-700/50 px-3 py-1.5"
+                >
+                  <Text className="text-xs font-medium text-slate-300">Cancelar</Text>
+                </TouchableOpacity>
+              ) : null}
+              {user && showLogout ? (
+                <TouchableOpacity 
+                  onPress={handleLogout} 
+                  className="flex-row items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5"
+                >
+                  <LogOut size={12} color="#ef4444" />
+                  <Text className="text-red-400 font-medium text-xs">Salir</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           )}
         </View>
