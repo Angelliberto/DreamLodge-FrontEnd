@@ -130,9 +130,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (resultsArray.length > 0) {
         setHasTestResults(true);
-        // Check what types of tests the user has
-        const hasQuick = resultsArray.some((r: any) => r.testType === 'quick' || (!r.testType && r.scores));
-        const hasDeep = resultsArray.some((r: any) => r.testType === 'deep');
+        // Check what types of tests the user has (formato API normalizado o legado)
+        const hasQuick = resultsArray.some(
+          (r: any) =>
+            r.testType === 'quick' ||
+            (!r.testType && (r.scores || r.dimensions))
+        );
+        const hasDeep = resultsArray.some(
+          (r: any) =>
+            r.testType === 'deep' ||
+            (r.subfacets &&
+              typeof r.subfacets === 'object' &&
+              Object.keys(r.subfacets).length > 0)
+        );
         setHasQuickTest(hasQuick);
         setHasDeepTest(hasDeep);
       } else {

@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Clock, ExternalLink, Heart, Music, Pause, Play } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -41,12 +41,21 @@ export default function ArtworkDetailsScreen() {
   const [albumData, setAlbumData] = useState<any>(null);
   const [loadingTracks, setLoadingTracks] = useState(false);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [activePreviewUrl, setActivePreviewUrl] = useState<string | null>(null);
+  // expo-audio: single player for current preview URL (no keep-awake / expo-av)
+  const player = useAudioPlayer(activePreviewUrl ?? null, { downloadFirst: true });
+  const status = useAudioPlayerStatus(player);
+  const hasTriggeredPlayRef = useRef(false);
   // States for categories (music has its own system, other artworks use metadata)
   const [musicGenres, setMusicGenres] = useState<string[]>([]);
   const [musicTags, setMusicTags] = useState<string[]>([]);
   const [musicPlatforms, setMusicPlatforms] = useState<string[]>([]);
   const [musicOther, setMusicOther] = useState<string[]>([]);
+
+  // Configure expo-audio mode (no keep-awake; avoids expo-av deprecation)
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const isMountedRef = { current: true };
@@ -73,19 +82,41 @@ export default function ArtworkDetailsScreen() {
       loadArtwork(isMountedRef);
     }
 
-    // Cleanup: stop audio when component unmounts
     return () => {
       isMountedRef.current = false;
-      if (sound) {
-        // Clear listener before unmounting
-        if (playbackStatusUpdateRef.current) {
-          sound.setOnPlaybackStatusUpdate(null);
-          playbackStatusUpdateRef.current = null;
-        }
-        sound.unloadAsync().catch(() => {});
-      }
     };
   }, [id, itemData]);
+
+  // When preview URL is set and loaded, start playback once
+  useEffect(() => {
+    if (activePreviewUrl && status?.isLoaded && !hasTriggeredPlayRef.current) {
+      hasTriggeredPlayRef.current = true;
+      player.play();
+    }
+  }, [activePreviewUrl, status?.isLoaded, player]);
+
+  // When URL changes, allow play trigger again
+  useEffect(() => {
+    if (!activePreviewUrl) {
+      hasTriggeredPlayRef.current = false;
+    }
+  }, [activePreviewUrl]);
+
+  // When playback finishes, clear current track
+  useEffect(() => {
+    if (
+      activePreviewUrl &&
+      status &&
+      status.isLoaded &&
+      !status.playing &&
+      status.duration > 0 &&
+      status.currentTime >= status.duration - 0.1
+    ) {
+      setActivePreviewUrl(null);
+      setPlayingTrackId(null);
+      hasTriggeredPlayRef.current = false;
+    }
+  }, [activePreviewUrl, status?.playing, status?.currentTime, status?.duration, status?.isLoaded]);
 
   // Check if artwork is in favorites and pending when loaded
   // Uses aggressive cache - only calls API if there's no valid cache
@@ -206,69 +237,18 @@ export default function ArtworkDetailsScreen() {
     }
   };
 
-  const playbackStatusUpdateRef = useRef<((status: any) => void) | null>(null);
-
-  const playPreview = useCallback(async (previewUrl: string, trackId: string) => {
-    try {
-      // If it's the same track playing, stop it
-      if (playingTrackId === trackId && sound) {
-        await stopPreview();
-        return;
-      }
-
-      // If another sound is playing, stop it first and clear listener
-      if (sound) {
-        if (playbackStatusUpdateRef.current) {
-          sound.setOnPlaybackStatusUpdate(null);
-          playbackStatusUpdateRef.current = null;
-        }
-        await sound.unloadAsync();
-        setSound(null);
-        setPlayingTrackId(null);
-      }
-
-      // Play the new preview
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: previewUrl },
-        { shouldPlay: true }
-      );
-      
-      setSound(newSound);
-      setPlayingTrackId(trackId);
-
-      // Create listener and save it in ref to clean it later
-      const statusUpdate = (status: any) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setPlayingTrackId(null);
-          setSound(null);
-          playbackStatusUpdateRef.current = null;
-        }
-      };
-      
-      playbackStatusUpdateRef.current = statusUpdate;
-      newSound.setOnPlaybackStatusUpdate(statusUpdate);
-    } catch (err) {
-      console.error('Error playing preview:', err);
-      // Clear state in case of error
+  const playPreview = useCallback((previewUrl: string, trackId: string) => {
+    if (playingTrackId === trackId && activePreviewUrl) {
+      player.pause();
+      setActivePreviewUrl(null);
       setPlayingTrackId(null);
-      setSound(null);
-      playbackStatusUpdateRef.current = null;
+      hasTriggeredPlayRef.current = false;
+      return;
     }
-  }, [playingTrackId, sound]);
-
-  const stopPreview = useCallback(async () => {
-    if (sound) {
-      // Limpiar listener antes de desmontar
-      if (playbackStatusUpdateRef.current) {
-        sound.setOnPlaybackStatusUpdate(null);
-        playbackStatusUpdateRef.current = null;
-      }
-      await sound.stopAsync();
-      await sound.unloadAsync();
-      setSound(null);
-      setPlayingTrackId(null);
-    }
-  }, [sound]);
+    setActivePreviewUrl(previewUrl);
+    setPlayingTrackId(trackId);
+    hasTriggeredPlayRef.current = false;
+  }, [playingTrackId, activePreviewUrl, player]);
 
   const loadArtwork = async (isMountedRef?: { current: boolean }) => {
     try {

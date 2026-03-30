@@ -116,6 +116,12 @@ export async function saveTestResults(userId: string, results: any): Promise<voi
     getBackendEndpoint('/ocean'),
     payload
   );
+
+  // Evitar que getUserTestResults sirva datos anteriores (p. ej. test rápido tras guardar profundo)
+  cache.delete(`testResults:${userId}`);
+  // Forzar nueva generación de descripción IA con los scores recién guardados
+  cache.delete(`artisticDescription:${userId}`);
+
   return response.data;
 }
 
@@ -340,6 +346,43 @@ export async function getPending(): Promise<CulturalItem[]> {
   
   // Save to cache (10 minutes - pending don't change frequently)
   cache.set(cacheKey, data, 10 * 60 * 1000);
+  
+  return data;
+}
+
+// ==================== ARTISTIC DESCRIPTION ====================
+
+/**
+ * Generate or get artistic description for a user based on their OCEAN test results
+ * @param userId - User ID
+ * @returns Artistic description with profile, description, and recommendations
+ */
+export async function generateArtisticDescription(userId: string): Promise<{
+  profile: string;
+  description: string;
+  recommendations: string[];
+}> {
+  const token = await getAuthToken();
+  if (!token) throw new Error('Not authenticated');
+  
+  // Check cache first
+  const cacheKey = `artisticDescription:${userId}`;
+  const cached = cache.get<{ profile: string; description: string; recommendations: string[] }>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  
+  const response = await axios.post(
+    getBackendEndpoint(`/ocean/user/${userId}/artistic-description`)
+  );
+  const data = response.data?.data || {
+    profile: 'Equilibrado',
+    description: 'Tu perfil artístico está siendo analizado...',
+    recommendations: []
+  };
+  
+  // Save to cache (24 hours - artistic description doesn't change frequently)
+  cache.set(cacheKey, data, 24 * 60 * 60 * 1000);
   
   return data;
 }

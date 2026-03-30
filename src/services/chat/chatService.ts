@@ -1,6 +1,5 @@
 // src/services/chat/chatService.ts
 
-import { CulturalItem } from '../../types/CulturalItem';
 import { ChatConversation, ChatMessage, ChatConnectionStatus } from '../../types/chat';
 import { storage } from '../../utils/storage';
 
@@ -11,7 +10,9 @@ const CURRENT_CONVERSATION_KEY = 'chat_current_conversation';
 // In-memory state for real-time updates
 let currentConversationId: string | null = null;
 let messageListeners: Map<string, Set<(message: ChatMessage) => void>> = new Map();
-let connectionStatus: ChatConnectionStatus = 'disconnected';
+// El estado de conexión siempre es 'connected' si el usuario tiene sesión activa
+// No hay una conexión persistente real, solo indicamos que el servicio está disponible
+let connectionStatus: ChatConnectionStatus = 'connected';
 let connectionStatusListeners: Set<(status: ChatConnectionStatus) => void> = new Set();
 
 /**
@@ -25,7 +26,8 @@ export async function getConversations(): Promise<ChatConversation[]> {
       ...conv,
       createdAt: new Date(conv.createdAt),
       updatedAt: new Date(conv.updatedAt),
-    }));
+    }))
+    .sort((a: ChatConversation, b: ChatConversation) => b.updatedAt.getTime() - a.updatedAt.getTime());
   } catch (error) {
     console.error('Error loading conversations:', error);
     return [];
@@ -58,7 +60,7 @@ export async function createConversation(title?: string): Promise<ChatConversati
   
   const newConversation: ChatConversation = {
     id: `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    title: title || `Conversación ${conversations.length + 1}`,
+    title: title || 'Nueva conversación',
     createdAt: now,
     updatedAt: now,
     messageCount: 0,
@@ -83,11 +85,15 @@ export async function updateConversation(
   
   if (index === -1) return;
   
-  conversations[index] = {
+  const updatedConversation = {
     ...conversations[index],
     ...updates,
     updatedAt: new Date(),
   };
+
+  // Move updated conversation to top so latest activity is visible immediately
+  conversations.splice(index, 1);
+  conversations.unshift(updatedConversation);
   
   await storage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(conversations));
 }
@@ -142,40 +148,6 @@ export async function addMessage(
   notifyMessageListeners(conversationId, newMessage);
 
   return newMessage;
-}
-
-/**
- * Add context items to a conversation
- */
-export async function addContextItemsToConversation(
-  conversationId: string,
-  items: CulturalItem[]
-): Promise<void> {
-  const conversation = (await getConversations()).find(c => c.id === conversationId);
-  if (!conversation) return;
-
-  // Merge with existing context items, avoiding duplicates
-  const existingIds = new Set(conversation.contextItems.map(item => item.id));
-  const newItems = items.filter(item => !existingIds.has(item.id));
-  
-  await updateConversation(conversationId, {
-    contextItems: [...conversation.contextItems, ...newItems],
-  });
-}
-
-/**
- * Remove context item from conversation
- */
-export async function removeContextItemFromConversation(
-  conversationId: string,
-  itemId: string
-): Promise<void> {
-  const conversation = (await getConversations()).find(c => c.id === conversationId);
-  if (!conversation) return;
-
-  await updateConversation(conversationId, {
-    contextItems: conversation.contextItems.filter(item => item.id !== itemId),
-  });
 }
 
 /**
@@ -299,33 +271,108 @@ export function getConnectionStatus(): ChatConnectionStatus {
 }
 
 /**
- * Send a message (simulates real-time AI response)
- * TODO: Replace with actual MCP server connection
+ * Send a message to the AI agent.
+ * If signal is provided and the request is aborted (e.g. user left the chat), no error message is added to the conversation.
  */
 export async function sendMessage(
   conversationId: string,
   text: string,
-  contextItems?: CulturalItem[]
+  signal?: AbortSignal,
+  currentTitle?: string
 ): Promise<ChatMessage> {
-  // Add user message
-  const userMessage = await addMessage(conversationId, text, 'user', 
-    contextItems?.map(item => item.id)
-  );
+  console.log('📤 Enviando mensaje al agente IA...');
 
-  // Set connecting status
-  setConnectionStatus('connecting');
+  await addMessage(conversationId, text, 'user');
 
-  // Simulate AI response (will be replaced with MCP server call)
-  // For now, simulate a delay and return a placeholder response
-  return new Promise((resolve) => {
-    setTimeout(async () => {
+  // El estado siempre es 'connected' - no cambiamos a 'connecting' porque no hay conexión persistente
+  // Solo mostramos 'error' si hay un problema real
+
+  try {
+    const { storage } = await import('../../utils/storage');
+    const token = await storage.getItem('userToken');
+
+    if (!token) {
+      setConnectionStatus('error');
+      throw new Error('No autenticado');
+    }
+
+    const { getBackendEndpoint } = await import('../../config/api');
+    const axios = (await import('axios')).default;
+
+    const response = await axios.post(
+      getBackendEndpoint('/chat/message'),
+      {
+        message: text,
+        conversationId,
+        currentTitle
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 90000, // 90 segundos para dar más tiempo
+        signal
+      }
+    );
+
+    // Mantener estado connected
+    setConnectionStatus('connected');
+
+    const aiResponseText = response.data?.data?.response || 'No pude generar una respuesta en este momento. ¿Quieres intentar de nuevo?';
+    const suggestedTitle = response.data?.data?.suggestedTitle;
+
+    const aiMessage = await addMessage(conversationId, aiResponseText, 'ai');
+
+    if (typeof suggestedTitle === 'string' && suggestedTitle.trim().length > 0) {
+      const conversations = await getConversations();
+      const currentConversation = conversations.find(c => c.id === conversationId);
+      const shouldUpdateTitle =
+        !!currentConversation &&
+        currentConversation.title.trim() !== suggestedTitle.trim();
+
+      if (shouldUpdateTitle) {
+        await updateConversation(conversationId, { title: suggestedTitle.trim() });
+      }
+    }
+
+    return aiMessage;
+  } catch (error: any) {
+    const isAborted = error.code === 'ERR_CANCELED' || error.name === 'AbortError';
+
+    if (isAborted) {
+      console.log('📤 Envío cancelado (usuario salió o cambió de conversación)');
+      // Mantener connected si fue cancelado por el usuario
       setConnectionStatus('connected');
-      
-      // TODO: Replace this with actual MCP server API call
-      const aiResponseText = `He recibido tu mensaje: "${text}". ${contextItems && contextItems.length > 0 ? `Veo que has añadido ${contextItems.length} elemento(s) al contexto. ` : ''}Esta es una respuesta simulada. La conexión con el servidor MCP se implementará próximamente.`;
-      
-      const aiMessage = await addMessage(conversationId, aiResponseText, 'ai');
-      resolve(aiMessage);
-    }, 1000);
-  });
+      throw error;
+    }
+
+    console.error('❌ Error sending message to AI agent:', error);
+
+    // Solo marcar como error si es un error de conexión real
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      setConnectionStatus('error');
+    } else if (error.request && !error.response) {
+      // Error de red
+      setConnectionStatus('error');
+    } else {
+      // Error del servidor pero la conexión funciona
+      setConnectionStatus('connected');
+    }
+
+    let errorMessage = 'Error al conectar con el agente IA';
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      errorMessage = 'La solicitud tardó demasiado. Por favor, intenta de nuevo.';
+    } else if (error.response?.data) {
+      const msg = error.response.data?.message;
+      errorMessage = typeof msg === 'string' ? msg : error.response.data?.details || `Error del servidor: ${error.response.status}`;
+    } else if (error.request) {
+      errorMessage = 'No se pudo conectar con el servidor. Verifica tu conexión.';
+    } else {
+      errorMessage = error.message || 'Error desconocido';
+    }
+
+    const aiMessage = await addMessage(conversationId, `Error: ${errorMessage}`, 'ai');
+    return aiMessage;
+  }
 }

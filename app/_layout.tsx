@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import * as Linking from "expo-linking";
 import React, { useEffect } from "react";
 import { Platform } from "react-native";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
 
@@ -60,18 +61,28 @@ const Layout: React.FC = () => {
     };
   }, [router]);
 
+  const stack = (
+    <AuthProvider>
+      <StatusBar style="light" />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          // Dark background by default to avoid white flashes
+          contentStyle: { backgroundColor: '#020617' },
+        }}
+      />
+    </AuthProvider>
+  );
+
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            // Dark background by default to avoid white flashes
-            contentStyle: { backgroundColor: '#020617' } 
-          }}
-        />
-      </AuthProvider>
+      {Platform.OS === "web" ? (
+        stack
+      ) : (
+        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+          {stack}
+        </KeyboardProvider>
+      )}
     </SafeAreaProvider>
   );
 };

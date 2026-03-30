@@ -5,7 +5,12 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 
-export function BottomNavigation() {
+type BottomNavigationProps = {
+  /** When false, the bar sits in normal layout flow (e.g. chat + keyboard) instead of overlaying content. */
+  useAbsolutePosition?: boolean;
+};
+
+export function BottomNavigation({ useAbsolutePosition = true }: BottomNavigationProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { hasTestResults } = useAuth();
@@ -54,7 +59,7 @@ export function BottomNavigation() {
 
   return (
     <View 
-      className="absolute bottom-0 left-0 right-0"
+      className={useAbsolutePosition ? 'absolute bottom-0 left-0 right-0' : 'w-full'}
       style={{
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -2 },

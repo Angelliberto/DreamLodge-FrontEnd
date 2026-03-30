@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Brain, Check, CheckCircle2, LogOut, RefreshCw, Star } from 'lucide-react-native';
+import { ArrowLeft, Brain, Check, CheckCircle2, LogOut, Star } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -29,12 +29,17 @@ type Question = {
   subfacet?: string;
   medium: string;
   text: string;
+  keying?: 'positive' | 'negative';
 };
 
 type Answer = {
   questionId: number;
   value: number; // -2 to +2
 };
+
+const DEEP_QUESTIONS = questionsData as Question[];
+const DEEP_SUBFACETS_COUNT = new Set(DEEP_QUESTIONS.map((q) => q.subfacet).filter(Boolean)).size;
+const QUICK_QUESTIONS = easierTestData as Question[];
 
 // Pantalla de selección de test
 export function TestSelectionScreen() {
@@ -55,9 +60,12 @@ export function TestSelectionScreen() {
     }
   };
 
-  const handleRestartTest = () => {
-    // Reiniciar el test - volver a la pantalla de selección
-    router.replace('/test-selection');
+  const handleLeaveSelection = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/FeedScreen');
+    }
   };
 
   const handleLogout = async () => {
@@ -101,16 +109,15 @@ export function TestSelectionScreen() {
             </View>
             
             <View className="flex-row items-center gap-2">
-              <TouchableOpacity 
-                onPress={handleRestartTest}
-                className="bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-600/50 flex-row items-center gap-1.5"
+              <TouchableOpacity
+                onPress={handleLeaveSelection}
+                className="flex-row items-center gap-1.5 rounded-lg border border-slate-600/50 bg-slate-700/50 px-3 py-1.5"
               >
-                <RefreshCw size={12} color="#94a3b8" />
-                <Text className="text-slate-300 font-medium text-xs">Reiniciar</Text>
+                <Text className="text-xs font-medium text-slate-300">Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 onPress={handleLogout}
-                className="bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 flex-row items-center gap-1.5"
+                className="flex-row items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5"
               >
                 <LogOut size={12} color="#ef4444" />
                 <Text className="text-red-400 font-medium text-xs">Salir</Text>
@@ -157,7 +164,7 @@ export function TestSelectionScreen() {
                     )}
                   </View>
                   <Text className="text-sm text-slate-400 leading-5">
-                    50 preguntas para obtener tu perfil artístico básico y comenzar a explorar
+                    {`${QUICK_QUESTIONS.length} preguntas Mini-IPIP para una medición breve de los 5 rasgos`}
                   </Text>
                   {hasQuickTest && (
                     <Text className="text-xs text-green-400 mt-2 font-medium">
@@ -170,9 +177,9 @@ export function TestSelectionScreen() {
               <View className="mb-6 gap-2">
                 {[
                   '5 rasgos principales',
-                  'Perfil artístico básico',
+                  'Mini-IPIP validado',
                   'Recomendaciones generales',
-                  '~10 minutos'
+                  '~5 minutos'
                 ].map((feature, idx) => (
                   <View key={idx} className="flex-row items-center gap-2">
                     <Check size={16} color="#22c55e" />
@@ -212,7 +219,7 @@ export function TestSelectionScreen() {
                     )}
                   </View>
                   <Text className="text-sm text-slate-400 leading-5">
-                    125 preguntas para un análisis detallado con subfacetas de cada rasgo de personalidad
+                    {`${DEEP_QUESTIONS.length} preguntas para un análisis detallado con ${DEEP_SUBFACETS_COUNT} subfacetas`}
                   </Text>
                   {hasDeepTest && (
                     <Text className="text-xs text-green-400 mt-2 font-medium">
@@ -225,7 +232,7 @@ export function TestSelectionScreen() {
               <View className="mb-6 gap-2">
                 {[
                   '5 rasgos principales',
-                  '25 subfacetas detalladas',
+                  `${DEEP_SUBFACETS_COUNT} subfacetas detalladas`,
                   'Análisis en profundidad',
                   'Recomendaciones precisas',
                   '~25 minutos'
@@ -261,7 +268,7 @@ export function TestSelectionScreen() {
 export default function BigFiveTestScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { user, checkTestResults } = useAuth();
+  const { user, checkTestResults, hasQuickTest, hasDeepTest } = useAuth();
   const testType = (params?.testType as TestType);
   
   // Todos los hooks deben estar antes de cualquier return condicional
@@ -277,9 +284,9 @@ export default function BigFiveTestScreen() {
     return <TestSelectionScreen />;
   }
 
-  const questions: Question[] = testType === 'quick' 
-    ? easierTestData.slice(0, 50) as Question[]
-    : questionsData.slice(0, 125) as Question[];
+  const questions: Question[] = testType === 'quick'
+    ? QUICK_QUESTIONS
+    : DEEP_QUESTIONS;
 
   const currentQuestion = questions[currentQuestionIndex];
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
@@ -324,6 +331,25 @@ export default function BigFiveTestScreen() {
     }
   };
 
+  const handleCancel = () => {
+    // Reset the in-progress questionnaire state before leaving.
+    setCurrentQuestionIndex(0);
+    setAnswers([]);
+    setSelectedValue(null);
+
+    if (hasQuickTest || hasDeepTest) {
+      router.replace('/test_results');
+      return;
+    }
+
+    router.replace('/test-selection');
+  };
+
+  const getScoredValue = (question: Question, answerValue: number) => {
+    // IPIP/AB5C methodology: reverse-score negatively keyed items.
+    return question.keying === 'negative' ? -answerValue : answerValue;
+  };
+
   const calculateResults = async () => {
     setLoading(true);
     
@@ -336,7 +362,7 @@ export default function BigFiveTestScreen() {
         if (!dimensionScores[question.dimension]) {
           dimensionScores[question.dimension] = [];
         }
-        dimensionScores[question.dimension].push(answer.value);
+        dimensionScores[question.dimension].push(getScoredValue(question, answer.value));
       }
     });
 
@@ -361,7 +387,7 @@ export default function BigFiveTestScreen() {
           if (!subfacetScores[question.dimension][question.subfacet]) {
             subfacetScores[question.dimension][question.subfacet] = [];
           }
-          subfacetScores[question.dimension][question.subfacet].push(answer.value);
+          subfacetScores[question.dimension][question.subfacet].push(getScoredValue(question, answer.value));
         }
       });
     }
@@ -412,7 +438,12 @@ export default function BigFiveTestScreen() {
       <SafeAreaView className="flex-1">
         <StatusBar barStyle="light-content" />
         
-        <NavigationBar variant="simple" showAuth={false} showLogout={false} />
+        <NavigationBar
+          variant="simple"
+          showAuth={false}
+          showLogout={!!user}
+          onCancel={handleCancel}
+        />
 
         {loading ? (
           <View className="flex-1 justify-center items-center">
@@ -425,7 +456,7 @@ export default function BigFiveTestScreen() {
             <View className="mx-4 mt-6 bg-slate-800/90 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
               {/* Back Button */}
               <TouchableOpacity 
-                className="flex-row items-center gap-2 mb-4"
+                className="mb-4 flex-row items-center gap-2"
                 onPress={() => router.back()}
               >
                 <ArrowLeft size={20} color="#94a3b8" />
@@ -445,10 +476,15 @@ export default function BigFiveTestScreen() {
                 </View>
               </View>
 
-              {/* Question */}
-              <Text className="text-xl font-semibold text-white mb-8 leading-7">
-                {currentQuestion.text}
-              </Text>
+              {/* Pregunta: altura fija compacta, sin scroll (el texto hace wrap y lo que no cabe queda recortado) */}
+              <View
+                className="mb-8 items-center justify-center overflow-hidden rounded-xl border border-slate-700/40 bg-slate-900/35 px-3 py-2.5"
+                style={{ height: 132 }}
+              >
+                <Text className="w-full text-center text-lg font-semibold leading-6 text-white">
+                  {currentQuestion.text}
+                </Text>
+              </View>
 
               {/* Likert Scale */}
               <View className="flex-row justify-between mb-8">
