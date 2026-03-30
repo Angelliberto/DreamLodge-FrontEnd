@@ -17,8 +17,12 @@ export const useRegister = (reset: () => void) => {
         birthdate: data.birthdate.trim(),
       });
 
-      router.replace("/test-selection");
+      router.replace({
+      pathname: "/verify_code",
+      params: { email: data.email },
+      });
     } catch (error: any) {
+      console.log(error)
       let errorMessage = "Error en el registro. Por favor intenta nuevamente.";
 
       if (error.response?.status === 400 || error.response?.status === 422) {
