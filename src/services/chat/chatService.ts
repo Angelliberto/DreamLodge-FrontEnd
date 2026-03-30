@@ -1,5 +1,6 @@
 // src/services/chat/chatService.ts
 
+import { CulturalItem } from '../../types/CulturalItem';
 import { ChatConversation, ChatMessage, ChatConnectionStatus } from '../../types/chat';
 import { storage } from '../../utils/storage';
 
@@ -108,6 +109,39 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   
   // Also delete messages
   await storage.removeItem(`${MESSAGES_STORAGE_PREFIX}${conversationId}`);
+}
+
+/**
+ * Add cultural context items to a conversation (merge, no duplicates).
+ */
+export async function addContextItemsToConversation(
+  conversationId: string,
+  items: CulturalItem[]
+): Promise<void> {
+  const conversation = (await getConversations()).find(c => c.id === conversationId);
+  if (!conversation) return;
+
+  const existingIds = new Set(conversation.contextItems.map(item => item.id));
+  const newItems = items.filter(item => !existingIds.has(item.id));
+
+  await updateConversation(conversationId, {
+    contextItems: [...conversation.contextItems, ...newItems],
+  });
+}
+
+/**
+ * Remove one context item from a conversation by id.
+ */
+export async function removeContextItemFromConversation(
+  conversationId: string,
+  itemId: string
+): Promise<void> {
+  const conversation = (await getConversations()).find(c => c.id === conversationId);
+  if (!conversation) return;
+
+  await updateConversation(conversationId, {
+    contextItems: conversation.contextItems.filter(item => item.id !== itemId),
+  });
 }
 
 /**
@@ -282,7 +316,12 @@ export async function sendMessage(
 ): Promise<ChatMessage> {
   console.log('📤 Enviando mensaje al agente IA...');
 
-  await addMessage(conversationId, text, 'user');
+  const conversationsForContext = await getConversations();
+  const convForContext = conversationsForContext.find(c => c.id === conversationId);
+  const contextItemIds =
+    convForContext?.contextItems?.map((item) => item.id) ?? [];
+
+  await addMessage(conversationId, text, 'user', contextItemIds);
 
   // El estado siempre es 'connected' - no cambiamos a 'connecting' porque no hay conexión persistente
   // Solo mostramos 'error' si hay un problema real
@@ -304,7 +343,8 @@ export async function sendMessage(
       {
         message: text,
         conversationId,
-        currentTitle
+        currentTitle,
+        contextItems: contextItemIds,
       },
       {
         headers: {
