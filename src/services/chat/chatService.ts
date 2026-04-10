@@ -1,5 +1,7 @@
 // src/services/chat/chatService.ts
 
+import axios from 'axios';
+import { getBackendEndpoint } from '../../config/api';
 import { CulturalItem } from '../../types/CulturalItem';
 import { ChatConversation, ChatMessage, ChatConnectionStatus } from '../../types/chat';
 import { storage } from '../../utils/storage';
@@ -327,16 +329,12 @@ export async function sendMessage(
   // Solo mostramos 'error' si hay un problema real
 
   try {
-    const { storage } = await import('../../utils/storage');
     const token = await storage.getItem('userToken');
 
     if (!token) {
       setConnectionStatus('error');
       throw new Error('No autenticado');
     }
-
-    const { getBackendEndpoint } = await import('../../config/api');
-    const axios = (await import('axios')).default;
 
     const response = await axios.post(
       getBackendEndpoint('/chat/message'),

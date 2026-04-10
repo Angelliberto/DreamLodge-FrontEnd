@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
-import { exchangeAuthSession } from '../src/services/DL_api/api';
+import { exchangeAuthSession } from '@/api/client';
 import type { User } from '../src/types';
 import { storage } from '../src/utils/storage';
 

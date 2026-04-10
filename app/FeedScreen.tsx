@@ -16,10 +16,18 @@ import { NavigationBar } from '../src/components/NavigationBar';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import { OptimizedImage } from '../src/components/ui/OptimizedImage';
 import { useAuth } from '../src/contexts/AuthContext';
-import { addToFavorites, addToPending, getFavorites, getPending, removeFromFavorites, removeFromPending } from '../src/services/DL_api/api';
-import { globalSearch } from '../src/services/external_api/UnifiedService';
-import { CulturalItem } from '../src/types/CulturalItem';
-
+import {
+  addToFavorites,
+  addToPending,
+  fetchPersonalizedFeedCurated,
+  getFavorites,
+  getPending,
+  removeFromFavorites,
+  removeFromPending,
+} from '@/api/client';
+import { globalSearch } from '@/api/globalSearch';
+import { CulturalItem } from '@/types/CulturalItem';
+import { getApiAlertMessage } from '@/utils/apiError';
 
 export default function UnifiedFeedScreen() {
   const router = useRouter();
@@ -40,11 +48,8 @@ export default function UnifiedFeedScreen() {
   const performSearch = useCallback(async (text: string = '', signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const data = await globalSearch(text.trim()); 
-      // Only update if component is still mounted and wasn't cancelled
+      const data = await globalSearch(text.trim(), { signal });
       if (!signal?.aborted) {
-        // Limit array size to avoid indefinite growth
-        // Keep only the first 200 items for better performance
         const limitedData = data.slice(0, 200);
         setItems(limitedData);
         setLoading(false);
@@ -56,6 +61,44 @@ export default function UnifiedFeedScreen() {
       }
     }
   }, []);
+
+  /** Feed mixto genérico (sin query). */
+  const runGlobalDefault = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const data = await globalSearch('', { signal });
+      if (!signal?.aborted) {
+        setItems(data.slice(0, 200));
+      }
+    } catch (error) {
+      if (!signal?.aborted) {
+        console.error('Error loading default feed:', error);
+      }
+    }
+  }, []);
+
+  /** Feed personalizado: backend (MCP + resolución en APIs de medios). */
+  const loadPersonalizedDefault = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const payload = await fetchPersonalizedFeedCurated().catch(() => ({
+          items: [] as CulturalItem[],
+        }));
+        if (signal?.aborted) return;
+        const list = payload.items || [];
+        if (list.length > 0) {
+          setItems(list.slice(0, 200));
+          return;
+        }
+        await runGlobalDefault(signal);
+      } catch (e) {
+        console.warn('Feed personalizado no disponible, usando feed general', e);
+        if (!signal?.aborted) {
+          await runGlobalDefault(signal);
+        }
+      }
+    },
+    [runGlobalDefault]
+  );
 
   // Debounced search function
   const debouncedSearch = useCallback((text: string) => {
@@ -78,27 +121,42 @@ export default function UnifiedFeedScreen() {
     }, 500);
   }, [performSearch]);
 
+  /** Sin texto en el buscador: feed IA + APIs; invitados → globalSearch(''). */
   useEffect(() => {
     const abortController = new AbortController();
     searchAbortControllerRef.current = abortController;
-    performSearch('', abortController.signal);
-    
-    // Cleanup: cancel search if component unmounts
+
+    if (query.trim().length > 0) {
+      return () => {
+        abortController.abort();
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+      };
+    }
+
+    setLoading(true);
+    const run = user?._id
+      ? loadPersonalizedDefault(abortController.signal)
+      : runGlobalDefault(abortController.signal);
+    run.finally(() => {
+      if (!abortController.signal.aborted) {
+        setLoading(false);
+      }
+    });
+
     return () => {
       abortController.abort();
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [performSearch]);
-  
-  // Effect for debounced search when query changes (only if there's text)
+  }, [query, user?._id, loadPersonalizedDefault, runGlobalDefault]);
+
   useEffect(() => {
-    // Only debounce if there's text in search (not on initial load)
     if (query && query.trim().length > 0) {
       debouncedSearch(query);
     }
-    
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -278,9 +336,9 @@ export default function UnifiedFeedScreen() {
           return newMap;
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error toggling favorite:', error);
-      Alert.alert('Error', error.response?.data?.message || 'No se pudo actualizar el favorito');
+      Alert.alert('Error', getApiAlertMessage(error, 'No se pudo actualizar el favorito'));
     } finally {
       setUpdatingItems(prev => {
         const newSet = new Set(prev);
@@ -365,9 +423,12 @@ export default function UnifiedFeedScreen() {
           return newMap;
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error toggling pending:', error);
-      Alert.alert('Error', error.response?.data?.message || 'No se pudo actualizar la lista de pendientes');
+      Alert.alert(
+        'Error',
+        getApiAlertMessage(error, 'No se pudo actualizar la lista de pendientes')
+      );
     } finally {
       setUpdatingItems(prev => {
         const newSet = new Set(prev);
@@ -467,7 +528,7 @@ export default function UnifiedFeedScreen() {
               </Text>
             )}
 
-            {/* Tags/Genres */}
+            {/* Géneros / descriptores */}
             {(item.metadata.genres && item.metadata.genres.length > 0) && (
               <View className="flex-row flex-wrap gap-2 mt-2">
                 {item.metadata.genres.slice(0, 4).map((genre, idx) => (

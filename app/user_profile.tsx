@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Book, Brain, Film, Gamepad2, Heart, Music2, Palette, Shield, Sparkles } from 'lucide-react-native';
+import { Brain, Film, Heart, Shield, Sparkles } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,10 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomNavigation } from '../src/components/BottomNavigation';
 import { NavigationBar } from '../src/components/NavigationBar';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
-import { OptimizedImage } from '../src/components/ui/OptimizedImage';
+import { CulturalGridItem } from '../src/components/cultural/CulturalGridItem';
 import { useAuth } from '../src/contexts/AuthContext';
-import { getFavorites, getPending, getUserTestResults } from '../src/services/DL_api/api';
-import { CulturalItem } from '../src/types/CulturalItem';
+import { getFavorites, getPending, getUserTestResults } from '@/api/client';
+import { CulturalItem } from '@/types/CulturalItem';
 
 const DIMENSION_NAMES: Record<string, { es: string; color: string }> = {
   openness: { es: 'Apertura', color: '#ec4899' },
@@ -55,93 +55,6 @@ function getProfileDescription(dimensions: Record<string, number>): { profile: s
     };
   }
 }
-
-// Memoized component for grid items
-const GridItem = React.memo(({ 
-  item, 
-  itemWidth, 
-  gap, 
-  index, 
-  onPress 
-}: { 
-  item: CulturalItem; 
-  itemWidth: number; 
-  gap: number; 
-  index: number;
-  onPress: (item: CulturalItem) => void;
-}) => {
-  const CategoryIcon = useMemo(() => {
-    switch(item.category) {
-      case 'cine': return Film;
-      case 'videojuegos': return Gamepad2;
-      case 'literatura': return Book;
-      case 'musica': return Music2;
-      case 'arte-visual': return Palette;
-      default: return Film;
-    }
-  }, [item.category]);
-
-  const categoryColor = useMemo(() => {
-    switch(item.category) {
-      case 'cine': return '#3b82f6';
-      case 'videojuegos': return '#a855f7';
-      case 'literatura': return '#facc15';
-      case 'musica': return '#22c55e';
-      case 'arte-visual': return '#f472b6';
-      default: return '#666';
-    }
-  }, [item.category]);
-
-  const isLastInRow = (index + 1) % 3 === 0;
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={() => onPress(item)}
-      style={{ 
-        width: itemWidth, 
-        marginBottom: 8,
-        marginRight: isLastInRow ? 0 : gap
-      }}
-    >
-      <View className="bg-slate-800/90 border border-slate-700/50 rounded-xl overflow-hidden">
-        <OptimizedImage 
-          source={{ uri: item.imageUrl }} 
-          style={{ width: '100%', height: 120 }} 
-          resizeMode="cover" 
-          className="bg-slate-700"
-          placeholderColor="#1e293b"
-        />
-        <View className="p-2">
-          <View className="flex-row items-center gap-1 mb-1">
-            <View 
-              style={{ backgroundColor: categoryColor }}
-              className="w-4 h-4 rounded-full items-center justify-center"
-            >
-              <CategoryIcon size={8} color="white" />
-            </View>
-            <Text className="text-slate-400 text-[10px] flex-1" numberOfLines={1}>
-              {item.category}
-            </Text>
-          </View>
-          <Text className="text-white font-semibold text-xs mb-1" numberOfLines={2}>
-            {item.title}
-          </Text>
-          <Text className="text-slate-300 text-[10px]" numberOfLines={1}>
-            {item.creator}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison to avoid unnecessary re-renders
-  return prevProps.item.id === nextProps.item.id && 
-         prevProps.itemWidth === nextProps.itemWidth &&
-         prevProps.index === nextProps.index;
-});
-
-GridItem.displayName = 'GridItem';
 
 export default function UserProfileScreen() {
   const router = useRouter();
@@ -501,7 +414,7 @@ export default function UserProfileScreen() {
                       <>
                         <View className="flex-row flex-wrap">
                           {favorites.slice(0, 15).map((item, index) => (
-                            <GridItem
+                            <CulturalGridItem
                               key={item.id || item.originalId}
                               item={item}
                               itemWidth={itemWidth}
@@ -545,7 +458,7 @@ export default function UserProfileScreen() {
                       <>
                         <View className="flex-row flex-wrap">
                           {pending.slice(0, 15).map((item, index) => (
-                            <GridItem
+                            <CulturalGridItem
                               key={item.id || item.originalId}
                               item={item}
                               itemWidth={itemWidth}

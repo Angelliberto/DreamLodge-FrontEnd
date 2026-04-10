@@ -16,9 +16,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import { useAuth } from '../src/contexts/AuthContext';
-import { addToFavorites, addToPending, getArtworkById, getFavorites, getPending, removeFromFavorites, removeFromPending } from '../src/services/DL_api/api';
-import { getAlbumTracks } from '../src/services/external_api/music';
-import { CulturalItem } from '../src/types/CulturalItem';
+import { addToFavorites, addToPending, getArtworkById, getFavorites, getPending, removeFromFavorites, removeFromPending } from '@/api/client';
+import { getAlbumTracks } from '@/api/spotifyMusic';
+import { CulturalItem } from '@/types/CulturalItem';
 
 export default function ArtworkDetailsScreen() {
   const router = useRouter();

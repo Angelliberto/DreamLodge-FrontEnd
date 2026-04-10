@@ -7,14 +7,13 @@ export interface User {
   deleted: boolean;
   createdAt: string; 
   updatedAt: string; 
-  preferences: Preferences;
-  emotional_profile: EmotionalProfile;
+  preferences?: Preferences;
+  emotional_profile?: EmotionalProfile;
   __v: number;
 }
 
 export interface Preferences {
   favorite_types: string[];
-  favorite_genres: string[];
 }
 
 export interface EmotionalProfile {

@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Brain, Check, Star, User } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import { Brain, Check, Star, User as UserIcon } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   ScrollView,
   StatusBar,
   Text,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNavigation } from '../src/components/BottomNavigation';
+import { CulturalGridItem } from '../src/components/cultural/CulturalGridItem';
 import { NavigationBar } from '../src/components/NavigationBar';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -22,12 +24,19 @@ import {
   orderedDimensionKeys,
   SUBFACET_INFO
 } from '../src/constants/oceanTestCopy';
-import { getUserTestResults, generateArtisticDescription } from '../src/services/DL_api/api';
+import {
+  ArtisticDescriptionPayload,
+  fetchPersonalizedFeedCurated,
+  generateArtisticDescription,
+  getUserTestResults,
+  invalidateArtisticDescriptionCache,
+} from '@/api/client';
+import type { CulturalItem } from '@/types/CulturalItem';
 
 const DIMENSION_ICONS: Record<string, any> = {
   openness: Star,
   conscientiousness: Check,
-  extraversion: User,
+  extraversion: UserIcon,
   agreeableness: Star,
   neuroticism: Brain
 };
@@ -54,28 +63,86 @@ export default function TestResultsScreen() {
   const [resultsView, setResultsView] = useState<'bigFive' | 'artistic'>('bigFive');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any>({});
-  const [artisticProfile, setArtisticProfile] = useState<{
-    description: string;
-    recommendations: string[];
-  } | null>(null);
+  const [artisticProfile, setArtisticProfile] = useState<ArtisticDescriptionPayload | null>(null);
   const [generatingDescription, setGeneratingDescription] = useState(false);
+  /** Obras de suggestedWorks (IA), mismas que al inicio del feed Explorar. */
+  const [profileWorkItems, setProfileWorkItems] = useState<CulturalItem[]>([]);
+  const [profileWorksLoading, setProfileWorksLoading] = useState(false);
+  const artisticGenInFlight = useRef(false);
 
-  // Function to generate artistic description using AI agent
-  const generateArtisticDescriptionForUser = useCallback(async (userId: string) => {
-    // Prevent multiple calls
-    if (generatingDescription || artisticProfile) return;
-    
+  const suggestedWorksKey = useMemo(() => {
+    const w = artisticProfile?.suggestedWorks;
+    if (!w?.length) return '';
+    return w.map((x) => `${x.category}:${x.title}:${x.creator || ''}`).join('|');
+  }, [artisticProfile?.suggestedWorks]);
+
+  const { recItemWidth, recGap } = useMemo(() => {
+    const screenWidth = Dimensions.get('window').width;
+    const padding = 16 * 2;
+    const gap = 8;
+    const itemWidth = (screenWidth - padding - gap * 2) / 3;
+    return { recItemWidth: itemWidth, recGap: gap };
+  }, []);
+
+  useEffect(() => {
+    if (resultsView !== 'artistic' || !suggestedWorksKey || !user?._id) {
+      setProfileWorkItems([]);
+      setProfileWorksLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setProfileWorksLoading(true);
+    fetchPersonalizedFeedCurated({ anchorsOnly: true })
+      .then((payload) => {
+        if (!cancelled) setProfileWorkItems(payload.items || []);
+      })
+      .catch(() => {
+        if (!cancelled) setProfileWorkItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setProfileWorksLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [resultsView, suggestedWorksKey, user?._id]);
+
+  const handleRecommendationPress = useCallback(
+    (item: CulturalItem) => {
+      const itemData = JSON.stringify(item);
+      router.push({
+        pathname: '/artwork-details',
+        params: {
+          id: item.id,
+          source: item.source,
+          originalId: String(item.originalId),
+          itemData,
+        },
+      });
+    },
+    [router]
+  );
+
+  /** force: tras rehacer el test — borra caché local y pide al servidor regenerar descripción y obras sugeridas */
+  const generateArtisticDescriptionForUser = useCallback(async (userId: string, force = false) => {
+    if (artisticGenInFlight.current) return;
+    artisticGenInFlight.current = true;
+    if (force) {
+      invalidateArtisticDescriptionCache(userId);
+      setArtisticProfile(null);
+    }
     setGeneratingDescription(true);
     try {
-      const description = await generateArtisticDescription(userId);
+      const description = await generateArtisticDescription(userId, { force });
       setArtisticProfile(description);
     } catch (error: any) {
       console.error('Error generating artistic description:', error);
       setArtisticProfile(null);
     } finally {
+      artisticGenInFlight.current = false;
       setGeneratingDescription(false);
     }
-  }, []); // Removed generatingDescription from dependencies to prevent loop
+  }, []);
 
   // Load results from params or API
   useEffect(() => {
@@ -86,9 +153,9 @@ export default function TestResultsScreen() {
           const parsedResults = JSON.parse(params.results as string);
           setArtisticProfile(null);
           setResults(parsedResults);
-          // Generate artistic description if user is logged in (DB y caché ya sin texto viejo tras save)
+          // Tras completar el test: forzar regeneración de IA (perfil y obras sugeridas)
           if (user?._id) {
-            generateArtisticDescriptionForUser(user._id);
+            generateArtisticDescriptionForUser(user._id, true);
           }
           return;
         } catch (error) {
@@ -174,10 +241,10 @@ export default function TestResultsScreen() {
             }
 
             setResults(resultData);
-            
-            // Generate artistic description using AI agent
+            setArtisticProfile(null);
+
             if (user._id) {
-              generateArtisticDescriptionForUser(user._id);
+              generateArtisticDescriptionForUser(user._id, false);
             }
           } else if (apiResults && !Array.isArray(apiResults) && apiResults.scores) {
             // Single result object with scores
@@ -217,10 +284,10 @@ export default function TestResultsScreen() {
             }
             
             setResults(resultData);
-            
-            // Generate artistic description using AI agent
+            setArtisticProfile(null);
+
             if (user._id) {
-              generateArtisticDescriptionForUser(user._id);
+              generateArtisticDescriptionForUser(user._id, false);
             }
           } else {
             Alert.alert('Sin resultados', 'No se encontraron resultados del test.');
@@ -369,11 +436,52 @@ export default function TestResultsScreen() {
                 </View>
               ) : artisticProfile ? (
                 <>
+                  {artisticProfile.profile ? (
+                    <Text className="mb-2 text-lg font-semibold text-purple-200">
+                      {artisticProfile.profile}
+                    </Text>
+                  ) : null}
                   <Text className="mb-4 leading-6 text-slate-300">{artisticProfile.description}</Text>
                   {artisticProfile.recommendations && artisticProfile.recommendations.length > 0 && (
-                    <View>
+                    <View className="mb-5">
                       <Text className="mb-2 text-sm text-slate-400">Te recomendamos:</Text>
                       <Text className="text-slate-300">{artisticProfile.recommendations.join(', ')}.</Text>
+                    </View>
+                  )}
+
+                  {(profileWorksLoading ||
+                    !!suggestedWorksKey ||
+                    profileWorkItems.length > 0) && (
+                    <View className="mt-5 border-t border-slate-700/60 pt-4">
+                      <Text className="mb-1 text-sm font-semibold text-white">
+                        Obras recomendadas para ti
+                      </Text>
+                      <Text className="mb-3 text-xs text-slate-500">
+                        Son las que ves al inicio en Explorar; allí se añade más variedad a partir del mismo perfil.
+                      </Text>
+                      {profileWorksLoading ? (
+                        <View className="items-center py-4">
+                          <ActivityIndicator color="#a855f7" />
+                          <Text className="mt-2 text-xs text-slate-500">Resolviendo obras…</Text>
+                        </View>
+                      ) : profileWorkItems.length > 0 ? (
+                        <View className="flex-row flex-wrap">
+                          {profileWorkItems.map((item, index) => (
+                            <CulturalGridItem
+                              key={item.id}
+                              item={item}
+                              itemWidth={recItemWidth}
+                              gap={recGap}
+                              index={index}
+                              onPress={handleRecommendationPress}
+                            />
+                          ))}
+                        </View>
+                      ) : suggestedWorksKey ? (
+                        <Text className="text-xs leading-5 text-slate-500">
+                          No encontramos coincidencias en las APIs para estas obras. Prueba en Explorar más tarde.
+                        </Text>
+                      ) : null}
                     </View>
                   )}
                 </>

@@ -1,14 +1,14 @@
-import { useRouter } from "expo-router";
-import { Calendar, Lock, Mail, Sparkles, User,  } from "lucide-react-native";
-import React from "react";
-import { ScrollView, Text, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useForm } from "react-hook-form";
 import { useRegister } from "@/hooks/useRegister";
+import { RegisterRequest } from "@/types";
+import { useRouter } from "expo-router";
+import { Calendar, Lock, Mail, Sparkles, User, } from "lucide-react-native";
+import React from "react";
+import { useForm } from "react-hook-form";
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { BackgroundLayout } from "../src/components/ui/BackgroundLayout";
 import { Button } from "../src/components/ui/button";
 import { FormInputField } from "../src/components/ui/FormInputField";
-import { RegisterRequest } from "@/types";
 
 export default function RegisterScreen() {
   const router = useRouter();

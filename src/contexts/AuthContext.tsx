@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { Platform } from 'react-native';
 
 import { getBackendEndpoint } from '../config/api';
-import { login as apiLogin, register as apiRegister, getGoogleSignInUrl, getUserTestResults } from '../services/DL_api/api';
+import { login as apiLogin, register as apiRegister, getGoogleSignInUrl, getUserTestResults } from '@/api/client';
 import { AuthResponse, LoginRequest, RegisterRequest, User } from '../types';
 import { cache } from '../utils/cache';
 import { storage } from '../utils/storage';
@@ -25,6 +25,8 @@ interface AuthContextType {
   googleSignIn: () => Promise<void>;
   logout: () => Promise<void>;
   checkTestResults: () => Promise<void>;
+  /** Fusiona campos en el usuario en memoria y en almacenamiento. */
+  mergeUser: (partial: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -163,6 +165,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(user);
   }, []);
 
+  const mergeUser = useCallback(async (partial: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...partial } as User;
+      void storage.setItem('userProfile', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const checkTestResults = useCallback(async () => {
     if (user?._id) {
       await checkTestResultsForUser(user._id);
@@ -271,8 +282,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     register, 
     googleSignIn,
     logout, 
-    checkTestResults 
-  }), [user, isLoading, hasTestResults, hasQuickTest, hasDeepTest, login, register, googleSignIn, logout, checkTestResults]);
+    checkTestResults,
+    mergeUser,
+  }), [user, isLoading, hasTestResults, hasQuickTest, hasDeepTest, login, register, googleSignIn, logout, checkTestResults, mergeUser]);
 
   return (
     <AuthContext.Provider value={contextValue}>

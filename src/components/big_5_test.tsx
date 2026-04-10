@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import easierTestData from '../../app/data/easier_test.json';
 import questionsData from '../../app/data/questions_json.json';
 import { useAuth } from '../contexts/AuthContext';
-import { saveTestResults } from '../services/DL_api/api';
+import { saveTestResults } from '@/api/client';
 import { BottomNavigation } from './BottomNavigation';
 import { NavigationBar } from './NavigationBar';
 import { BackgroundLayout } from './ui/BackgroundLayout';
