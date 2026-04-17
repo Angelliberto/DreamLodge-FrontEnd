@@ -7,7 +7,8 @@ import {
   Path,
   RegisterOptions,
 } from "react-hook-form";
-import { Text, TextInputProps, View } from "react-native";
+import { Text, TextInputProps, TouchableOpacity, View } from "react-native";
+import { Eye, EyeOff } from "lucide-react-native";
 import { Input } from "./input";
 
 type FormInputFieldProps<T extends FieldValues> = TextInputProps & {
@@ -18,6 +19,7 @@ type FormInputFieldProps<T extends FieldValues> = TextInputProps & {
   rules?: RegisterOptions<T, Path<T>>;
   icon?: React.ReactNode;
   helperText?: string;
+  showPasswordToggle?: boolean;
 };
 
 export function FormInputField<T extends FieldValues>({
@@ -29,9 +31,16 @@ export function FormInputField<T extends FieldValues>({
   icon,
   helperText,
   className = "",
+  secureTextEntry = false,
+  showPasswordToggle = false,
   ...props
 }: FormInputFieldProps<T>) {
   const error = errors[name]?.message?.toString();
+  const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
+
+  const inputSecureTextEntry = showPasswordToggle
+    ? !isPasswordVisible
+    : secureTextEntry;
 
   return (
     <View>
@@ -47,13 +56,30 @@ export function FormInputField<T extends FieldValues>({
               value={value ?? ""}
               onChangeText={onChange}
               onBlur={onBlur}
-              className={`pl-10 ${error ? "border-red-500" : ""} ${className}`}
+              secureTextEntry={inputSecureTextEntry}
+              className={`pl-10 ${showPasswordToggle ? "pr-10" : ""} ${
+                error ? "border-red-500" : ""
+              } ${className}`}
               {...props}
             />
           )}
         />
 
         {icon ? <View className="absolute left-3 top-3.5">{icon}</View> : null}
+
+        {showPasswordToggle ? (
+          <TouchableOpacity
+            onPress={() => setIsPasswordVisible((prev) => !prev)}
+            className="absolute right-3 top-3.5"
+            activeOpacity={0.7}
+          >
+            {isPasswordVisible ? (
+              <EyeOff size={18} color="#64748b" />
+            ) : (
+              <Eye size={18} color="#64748b" />
+            )}
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {error ? (
