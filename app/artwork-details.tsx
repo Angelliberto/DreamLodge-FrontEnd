@@ -1,7 +1,7 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Clock, ExternalLink, Heart, Music, Pause, Play } from 'lucide-react-native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Clock, ExternalLink, EyeOff, Heart, Music, Pause, Play } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,17 +16,38 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import { useAuth } from '../src/contexts/AuthContext';
-import { addToFavorites, addToPending, getArtworkById, getFavorites, getPending, removeFromFavorites, removeFromPending } from '@/api/client';
+import { addToFavorites, addToPending, getArtworkById, getFavorites, getPending, getSimilarArtworks, removeFromFavorites, removeFromPending } from '@/api/client';
 import { getAlbumTracks } from '@/api/spotifyMusic';
 import { CulturalItem } from '@/types/CulturalItem';
+import { storage } from '@/utils/storage';
+
+function isSpotifyMusicArtwork(item: any): boolean {
+  return Boolean(item?.category === 'musica' && item?.source === 'Spotify' && item?.originalId);
+}
+
+function toArtworkPayload(item: any): CulturalItem {
+  return {
+    id: item.id,
+    originalId: item.originalId,
+    source: item.source,
+    title: item.title,
+    category: item.category,
+    imageUrl: item.imageUrl,
+    creator: item.creator,
+    year: item.year,
+    description: item.description,
+    rating: item.rating,
+    metadata: item.metadata || {},
+  };
+}
+
+const NOT_INTERESTED_STORAGE_KEY = 'feed.notInterestedIds';
 
 export default function ArtworkDetailsScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { id, source, originalId, itemData } = useLocalSearchParams<{ 
+  const { id, itemData } = useLocalSearchParams<{ 
     id: string; 
-    source?: string; 
-    originalId?: string; 
     itemData?: string;
   }>();
   const [artwork, setArtwork] = useState<any | null>(null);
@@ -38,10 +59,11 @@ export default function ArtworkDetailsScreen() {
   const [updatingFavorite, setUpdatingFavorite] = useState(false);
   const [updatingPending, setUpdatingPending] = useState(false);
   const [tracks, setTracks] = useState<any[]>([]);
-  const [albumData, setAlbumData] = useState<any>(null);
   const [loadingTracks, setLoadingTracks] = useState(false);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
   const [activePreviewUrl, setActivePreviewUrl] = useState<string | null>(null);
+  const [similarItems, setSimilarItems] = useState<CulturalItem[]>([]);
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
   // expo-audio: single player for current preview URL (no keep-awake / expo-av)
   const player = useAudioPlayer(activePreviewUrl ?? null, { downloadFirst: true });
   const status = useAudioPlayerStatus(player);
@@ -51,11 +73,119 @@ export default function ArtworkDetailsScreen() {
   const [musicTags, setMusicTags] = useState<string[]>([]);
   const [musicPlatforms, setMusicPlatforms] = useState<string[]>([]);
   const [musicOther, setMusicOther] = useState<string[]>([]);
+  const artworkPayload = useMemo<CulturalItem | null>(
+    () => (artwork ? toArtworkPayload(artwork) : null),
+    [artwork]
+  );
 
   // Configure expo-audio mode (no keep-awake; avoids expo-av deprecation)
   useEffect(() => {
     setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
   }, []);
+
+  const loadTracks = useCallback(async (albumId: string, isMountedRef?: { current: boolean }) => {
+    try {
+      setLoadingTracks(true);
+      const result = await getAlbumTracks(albumId);
+
+      // Solo actualizar si el componente sigue montado
+      if (isMountedRef && !isMountedRef.current) return;
+
+      setTracks(result.tracks);
+
+      // Save separated categories
+      setMusicGenres(result.genres || []);
+      setMusicTags(result.tags || []);
+      setMusicPlatforms(result.platforms || []);
+      setMusicOther(result.other || []);
+
+      // Update artwork genres for FeedScreen (combine all)
+      const allGenres = [
+        ...(result.genres || []),
+        ...(result.tags || []),
+        ...(result.platforms || [])
+      ];
+
+      if (allGenres.length > 0) {
+        setArtwork((prev: any) => ({
+          ...prev,
+          metadata: {
+            ...prev?.metadata,
+            genres: allGenres
+          }
+        }));
+      } else if (result.album?.genres && result.album.genres.length > 0) {
+        // Fallback: use album genres if available
+        const formatGenres = (genres: string[]): string[] => {
+          return genres.map(genre =>
+            genre
+              .split(' ')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+              .join(' ')
+          );
+        };
+        setArtwork((prev: any) => ({
+          ...prev,
+          metadata: {
+            ...prev?.metadata,
+            genres: formatGenres(result.album.genres)
+          }
+        }));
+      }
+    } catch (err) {
+      if (!isMountedRef || isMountedRef.current) {
+        console.error('Error loading tracks:', err);
+      }
+    } finally {
+      if (!isMountedRef || isMountedRef.current) {
+        setLoadingTracks(false);
+      }
+    }
+  }, []);
+
+  const loadArtwork = useCallback(async (isMountedRef?: { current: boolean }) => {
+    try {
+      setLoading(true);
+      setError(null);
+      // Try to get from backend first
+      const data = await getArtworkById(id);
+
+      // Solo actualizar si el componente sigue montado
+      if (isMountedRef && !isMountedRef.current) return;
+
+      setArtwork(data);
+      // Si es música, cargar las canciones
+      if (isSpotifyMusicArtwork(data)) {
+        loadTracks(String(data.originalId), isMountedRef);
+      }
+    } catch (err: any) {
+      // Solo actualizar si el componente sigue montado
+      if (isMountedRef && !isMountedRef.current) return;
+
+      console.error('Error loading artwork from backend:', err);
+      // If it fails, try to use basic data if available
+      if (itemData) {
+        try {
+          const parsed = JSON.parse(itemData);
+          setArtwork(parsed);
+          // If it's music, load the tracks
+          if (isSpotifyMusicArtwork(parsed)) {
+            loadTracks(String(parsed.originalId), isMountedRef);
+          }
+        } catch {
+          const errorMessage = err.response?.data?.message || err.message || 'Error al cargar la obra';
+          setError(typeof errorMessage === 'string' ? errorMessage : 'Error al cargar la obra');
+        }
+      } else {
+        const errorMessage = err.response?.data?.message || err.message || 'Error al cargar la obra';
+        setError(typeof errorMessage === 'string' ? errorMessage : 'Error al cargar la obra');
+      }
+    } finally {
+      if (!isMountedRef || isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [id, itemData, loadTracks]);
 
   useEffect(() => {
     const isMountedRef = { current: true };
@@ -67,8 +197,7 @@ export default function ArtworkDetailsScreen() {
         if (isMountedRef.current) {
           setArtwork(parsed);
           setLoading(false);
-          // If it's music, load the tracks
-          if (parsed.category === 'musica' && parsed.source === 'Spotify' && parsed.originalId) {
+          if (isSpotifyMusicArtwork(parsed)) {
             loadTracks(String(parsed.originalId), isMountedRef);
           }
         }
@@ -85,7 +214,7 @@ export default function ArtworkDetailsScreen() {
     return () => {
       isMountedRef.current = false;
     };
-  }, [id, itemData]);
+  }, [id, itemData, loadArtwork, loadTracks]);
 
   // When preview URL is set and loaded, start playback once
   useEffect(() => {
@@ -116,7 +245,7 @@ export default function ArtworkDetailsScreen() {
       setPlayingTrackId(null);
       hasTriggeredPlayRef.current = false;
     }
-  }, [activePreviewUrl, status?.playing, status?.currentTime, status?.duration, status?.isLoaded]);
+  }, [activePreviewUrl, status]);
 
   // Check if artwork is in favorites and pending when loaded
   // Uses aggressive cache - only calls API if there's no valid cache
@@ -176,66 +305,50 @@ export default function ArtworkDetailsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artwork?.id, user?._id]);
 
-  const loadTracks = async (albumId: string, isMountedRef?: { current: boolean }) => {
-    try {
-      setLoadingTracks(true);
-      const result = await getAlbumTracks(albumId);
-      
-      // Solo actualizar si el componente sigue montado
-      if (isMountedRef && !isMountedRef.current) return;
-      
-      setTracks(result.tracks);
-      setAlbumData(result.album);
-      
-      // Save separated categories
-      setMusicGenres(result.genres || []);
-      setMusicTags(result.tags || []);
-      setMusicPlatforms(result.platforms || []);
-      setMusicOther(result.other || []);
-      
-      // Update artwork genres for FeedScreen (combine all)
-      const allGenres = [
-        ...(result.genres || []),
-        ...(result.tags || []),
-        ...(result.platforms || [])
-      ];
-      
-      if (allGenres.length > 0) {
-        setArtwork((prev: any) => ({
-          ...prev,
-          metadata: {
-            ...prev?.metadata,
-            genres: allGenres
-          }
-        }));
-      } else if (result.album?.genres && result.album.genres.length > 0) {
-        // Fallback: use album genres if available
-        const formatGenres = (genres: string[]): string[] => {
-          return genres.map(genre => 
-            genre
-              .split(' ')
-              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-              .join(' ')
-          );
-        };
-        setArtwork((prev: any) => ({
-          ...prev,
-          metadata: {
-            ...prev?.metadata,
-            genres: formatGenres(result.album.genres)
-          }
-        }));
+  const similarSeed = useMemo(() => {
+    if (!artwork?.title || !artwork?.category) return '';
+    return JSON.stringify({
+      id: artwork.id,
+      title: artwork.title,
+      category: artwork.category,
+      creator: artwork.creator,
+      description: artwork.description,
+      genres: artwork?.metadata?.genres || [],
+    });
+  }, [artwork?.id, artwork?.title, artwork?.category, artwork?.creator, artwork?.description, artwork?.metadata?.genres]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSimilar = async () => {
+      if (!similarSeed || !artworkPayload) {
+        if (!cancelled) setSimilarItems([]);
+        return;
       }
-    } catch (err) {
-      if (!isMountedRef || isMountedRef.current) {
-        console.error('Error loading tracks:', err);
+      setLoadingSimilar(true);
+      try {
+        const items = await getSimilarArtworks(
+          {
+            id: artworkPayload.id,
+            title: artworkPayload.title,
+            category: artworkPayload.category,
+            creator: artworkPayload.creator,
+            description: artworkPayload.description,
+            metadata: artworkPayload.metadata || {},
+          },
+          { limit: 3 }
+        );
+        if (!cancelled) setSimilarItems(items.slice(0, 3));
+      } catch {
+        if (!cancelled) setSimilarItems([]);
+      } finally {
+        if (!cancelled) setLoadingSimilar(false);
       }
-    } finally {
-      if (!isMountedRef || isMountedRef.current) {
-        setLoadingTracks(false);
-      }
-    }
-  };
+    };
+    loadSimilar();
+    return () => {
+      cancelled = true;
+    };
+  }, [similarSeed, artworkPayload]);
 
   const playPreview = useCallback((previewUrl: string, trackId: string) => {
     if (playingTrackId === trackId && activePreviewUrl) {
@@ -250,52 +363,8 @@ export default function ArtworkDetailsScreen() {
     hasTriggeredPlayRef.current = false;
   }, [playingTrackId, activePreviewUrl, player]);
 
-  const loadArtwork = async (isMountedRef?: { current: boolean }) => {
-    try {
-      setLoading(true);
-      setError(null);
-      // Try to get from backend first
-      const data = await getArtworkById(id);
-      
-      // Solo actualizar si el componente sigue montado
-      if (isMountedRef && !isMountedRef.current) return;
-      
-      setArtwork(data);
-      // Si es música, cargar las canciones
-      if (data?.category === 'musica' && data?.source === 'Spotify' && data?.originalId) {
-        loadTracks(String(data.originalId), isMountedRef);
-      }
-    } catch (err: any) {
-      // Solo actualizar si el componente sigue montado
-      if (isMountedRef && !isMountedRef.current) return;
-      
-      console.error('Error loading artwork from backend:', err);
-      // If it fails, try to use basic data if available
-      if (itemData) {
-        try {
-          const parsed = JSON.parse(itemData);
-          setArtwork(parsed);
-          // If it's music, load the tracks
-          if (parsed.category === 'musica' && parsed.source === 'Spotify' && parsed.originalId) {
-            loadTracks(String(parsed.originalId), isMountedRef);
-          }
-        } catch (e) {
-          const errorMessage = err.response?.data?.message || err.message || 'Error al cargar la obra';
-          setError(typeof errorMessage === 'string' ? errorMessage : 'Error al cargar la obra');
-        }
-      } else {
-        const errorMessage = err.response?.data?.message || err.message || 'Error al cargar la obra';
-        setError(typeof errorMessage === 'string' ? errorMessage : 'Error al cargar la obra');
-      }
-    } finally {
-      if (!isMountedRef || isMountedRef.current) {
-        setLoading(false);
-      }
-    }
-  };
-
-  const handleToggleFavorite = async () => {
-    if (!artwork || !user) return;
+  const handleToggleFavorite = useCallback(async () => {
+    if (!artwork || !user || !artworkPayload) return;
 
     setUpdatingFavorite(true);
     try {
@@ -325,20 +394,7 @@ export default function ArtworkDetailsScreen() {
           }
         }
 
-        const artworkData: CulturalItem = {
-          id: artwork.id,
-          originalId: artwork.originalId,
-          source: artwork.source,
-          title: artwork.title,
-          category: artwork.category,
-          imageUrl: artwork.imageUrl,
-          creator: artwork.creator,
-          year: artwork.year,
-          description: artwork.description,
-          rating: artwork.rating,
-          metadata: artwork.metadata || {}
-        };
-        const result = await addToFavorites(artworkData);
+        const result = await addToFavorites(artworkPayload);
         setIsFavorite(true);
         // Si el backend retorna el artworkId, guardarlo
         if (result.data?.artworkId) {
@@ -352,10 +408,10 @@ export default function ArtworkDetailsScreen() {
     } finally {
       setUpdatingFavorite(false);
     }
-  };
+  }, [artwork, user, artworkPayload, isFavorite, artworkMongoId, isPending]);
 
-  const handleTogglePending = async () => {
-    if (!artwork || !user) return;
+  const handleTogglePending = useCallback(async () => {
+    if (!artwork || !user || !artworkPayload) return;
 
     setUpdatingPending(true);
     try {
@@ -388,20 +444,7 @@ export default function ArtworkDetailsScreen() {
           }
         }
 
-        const artworkData: CulturalItem = {
-          id: artwork.id,
-          originalId: artwork.originalId,
-          source: artwork.source,
-          title: artwork.title,
-          category: artwork.category,
-          imageUrl: artwork.imageUrl,
-          creator: artwork.creator,
-          year: artwork.year,
-          description: artwork.description,
-          rating: artwork.rating,
-          metadata: artwork.metadata || {}
-        };
-        const result = await addToPending(artworkData);
+        const result = await addToPending(artworkPayload);
         setIsPending(true);
         // If backend returns artworkId, save it (only if we don't have one already)
         if (result.data?.artworkId && !artworkMongoId) {
@@ -415,7 +458,33 @@ export default function ArtworkDetailsScreen() {
     } finally {
       setUpdatingPending(false);
     }
-  };
+  }, [artwork, user, artworkPayload, isPending, artworkMongoId, isFavorite]);
+
+  const handleSimilarPress = useCallback((item: CulturalItem) => {
+    router.push({
+      pathname: '/artwork-details',
+      params: {
+        id: item.id,
+        source: item.source,
+        originalId: String(item.originalId),
+        itemData: JSON.stringify(item),
+      },
+    });
+  }, [router]);
+
+  const handleNotInterested = useCallback(async () => {
+    if (!artwork?.id) return;
+    try {
+      const raw = await storage.getItem(NOT_INTERESTED_STORAGE_KEY);
+      const current = raw ? JSON.parse(raw) : [];
+      const set = new Set(Array.isArray(current) ? current.filter((x) => typeof x === 'string') : []);
+      set.add(artwork.id);
+      await storage.setItem(NOT_INTERESTED_STORAGE_KEY, JSON.stringify(Array.from(set)));
+      router.back();
+    } catch (err) {
+      console.error('Error saving not interested artwork:', err);
+    }
+  }, [artwork?.id, router]);
 
   const getCategoryName = (cat: string) => {
     switch(cat) {
@@ -465,13 +534,13 @@ export default function ArtworkDetailsScreen() {
 
   // Get tags (tone_tags from model or empty array)
   const tags = artwork.tone_tags || [];
-  
+
   // Extract categories from metadata for all artworks
   const genres = artwork.metadata?.genres || [];
   const artworkTags = artwork.metadata?.tags || [];
   const artworkPlatforms = artwork.metadata?.platforms || [];
   const artworkOther = artwork.metadata?.other || [];
-  
+
   // For music, use specific states if available
   const displayGenres = artwork.category === 'musica' && musicGenres.length > 0 ? musicGenres : genres;
   const displayTags = artwork.category === 'musica' && musicTags.length > 0 ? musicTags : artworkTags;
@@ -576,6 +645,14 @@ export default function ArtworkDetailsScreen() {
                 <Text className="text-white font-medium">Pendiente</Text>
               </TouchableOpacity>
             </View>
+
+            <TouchableOpacity
+              onPress={handleNotInterested}
+              className="mb-6 bg-slate-700/60 border border-slate-600 rounded-full py-3 px-4 flex-row items-center justify-center gap-2"
+            >
+              <EyeOff size={18} color="#cbd5e1" />
+              <Text className="text-slate-200 font-medium">No me interesa</Text>
+            </TouchableOpacity>
 
             {/* Botón para abrir en Spotify (solo para música) */}
             {artwork.category === 'musica' && artwork.metadata?.contextLink && (
@@ -687,6 +764,48 @@ export default function ArtworkDetailsScreen() {
                 </Text>
               </View>
             )}
+
+            {/* Obras similares recomendadas por IA */}
+            <View className="mb-6">
+              <Text className="text-xl font-semibold text-white mb-3">
+                Obras similares para ti
+              </Text>
+              {loadingSimilar ? (
+                <View className="py-4">
+                  <ActivityIndicator size="small" color="#a855f7" />
+                </View>
+              ) : similarItems.length > 0 ? (
+                <View className="flex-row gap-2">
+                  {similarItems.slice(0, 3).map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      className="flex-1 bg-slate-800/60 border border-slate-700/50 rounded-xl overflow-hidden"
+                      activeOpacity={0.85}
+                      onPress={() => handleSimilarPress(item)}
+                    >
+                      <Image
+                        source={{ uri: item.imageUrl }}
+                        style={{ width: '100%', height: 130 }}
+                        resizeMode="cover"
+                        className="bg-slate-700"
+                      />
+                      <View className="p-2">
+                        <Text className="text-white text-xs font-semibold" numberOfLines={2}>
+                          {item.title}
+                        </Text>
+                        <Text className="text-slate-400 text-[10px] mt-1" numberOfLines={1}>
+                          {item.creator}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <Text className="text-slate-500 text-sm">
+                  No encontramos obras similares ahora mismo.
+                </Text>
+              )}
+            </View>
 
             {/* Categorías separadas para todas las obras */}
             <>

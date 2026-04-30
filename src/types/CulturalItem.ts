@@ -31,5 +31,6 @@ export interface CulturalItem {
     duration?: string;       // "120 min", "350 págs", "12 tracks"
     label?: string;          // "Nintendo", "Sony Music", "Oil on canvas"
     contextLink?: string;    // Link to original website or app
+    mediaType?: 'movie' | 'series'; // Subtype for cinema results
   };
 }

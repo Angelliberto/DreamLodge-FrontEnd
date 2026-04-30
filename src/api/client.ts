@@ -48,6 +48,10 @@ export function invalidateArtisticDescriptionCache(userId: string): void {
   cache.delete(`artisticDescription:${userId}`);
 }
 
+export function invalidatePersonalizedFeedCache(): void {
+  cache.deleteByPattern(/^personalizedFeed:/);
+}
+
 export async function saveTestResults(userId: string, results: any): Promise<void> {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
@@ -98,6 +102,7 @@ export async function saveTestResults(userId: string, results: any): Promise<voi
 
   cache.delete(`testResults:${userId}`);
   invalidateArtisticDescriptionCache(userId);
+  invalidatePersonalizedFeedCache();
 }
 
 export async function getUserTestResults(userId: string): Promise<any | null> {
@@ -176,6 +181,20 @@ export async function getArtworkById(id: string): Promise<any> {
   return response.data?.data || response.data;
 }
 
+export async function getSimilarArtworks(
+  artwork: Partial<CulturalItem>,
+  options?: { limit?: number }
+): Promise<CulturalItem[]> {
+  if (!artwork?.title || !artwork?.category) return [];
+  const response = await axios.post(
+    getBackendEndpoint('/artworks/similar'),
+    { artwork, limit: options?.limit ?? 3 },
+    { timeout: 12000 }
+  );
+  const items = response.data?.data?.items;
+  return Array.isArray(items) ? items : [];
+}
+
 export async function addToFavorites(
   artwork: CulturalItem
 ): Promise<{ message: string; data: { artworkId: string } }> {
@@ -246,12 +265,41 @@ export type ArtisticSuggestedWork = {
   creator?: string;
 };
 
+export const ARTISTIC_GENRE_KEYS = [
+  'cine',
+  'musica',
+  'literatura',
+  'videojuegos',
+  'arte-visual'
+] as const;
+
+export type GenreRecommendationsByCategory = Partial<
+  Record<(typeof ARTISTIC_GENRE_KEYS)[number], string[]>
+>;
+
 export type ArtisticDescriptionPayload = {
   profile: string;
   description: string;
+  /** @deprecated Prefer genreRecommendations; mantenido por respuestas antiguas del backend */
   recommendations: string[];
+  genreRecommendations?: GenreRecommendationsByCategory;
   suggestedWorks?: ArtisticSuggestedWork[];
 };
+
+function normalizeGenreRecommendations(
+  raw: unknown
+): GenreRecommendationsByCategory | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const out: GenreRecommendationsByCategory = {};
+  for (const k of ARTISTIC_GENRE_KEYS) {
+    const arr = o[k];
+    if (!Array.isArray(arr)) continue;
+    const cleaned = arr.map((x) => String(x).trim()).filter((x) => x.length > 0);
+    if (cleaned.length) out[k] = cleaned;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 function normalizeArtisticPayload(raw: Record<string, unknown> | null | undefined): ArtisticDescriptionPayload {
   const rec = Array.isArray(raw?.recommendations) ? raw.recommendations : [];
@@ -286,6 +334,7 @@ function normalizeArtisticPayload(raw: Record<string, unknown> | null | undefine
         ? raw.description
         : 'Tu perfil artístico está siendo analizado...',
     recommendations: rec.filter((x): x is string => typeof x === 'string'),
+    genreRecommendations: normalizeGenreRecommendations(raw?.genreRecommendations),
     suggestedWorks: suggestedWorks.length > 0 ? suggestedWorks : undefined,
   };
 }
@@ -298,7 +347,10 @@ export async function generateArtisticDescription(
   if (!token) throw new Error('Not authenticated');
 
   const cacheKey = `artisticDescription:${userId}`;
-  if (options?.force) cache.delete(cacheKey);
+  if (options?.force) {
+    cache.delete(cacheKey);
+    invalidatePersonalizedFeedCache();
+  }
 
   const cached = cache.get<ArtisticDescriptionPayload>(cacheKey);
   if (cached && !options?.force) return cached;
@@ -322,9 +374,31 @@ export type PersonalizedFeedCuratedPayload = {
 export async function fetchPersonalizedFeedCurated(options?: {
   force?: boolean;
   anchorsOnly?: boolean;
+  userId?: string;
 }): Promise<PersonalizedFeedCuratedPayload> {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
+  let cacheUserId = String(options?.userId || '').trim();
+  if (!cacheUserId) {
+    try {
+      const rawProfile = await storage.getItem('userProfile');
+      if (rawProfile) {
+        const parsed = JSON.parse(rawProfile) as { _id?: string };
+        if (parsed && typeof parsed._id === 'string') {
+          cacheUserId = parsed._id.trim();
+        }
+      }
+    } catch {
+      // Ignore profile parse errors; fallback to anon cache scope.
+    }
+  }
+  const cacheKey = `personalizedFeed:${cacheUserId || 'anon'}:${options?.force ? 1 : 0}:${options?.anchorsOnly ? 1 : 0}`;
+  if (options?.force) {
+    cache.delete(cacheKey);
+  } else {
+    const cached = cache.get<PersonalizedFeedCuratedPayload>(cacheKey);
+    if (cached) return cached;
+  }
   const params: Record<string, string | number> = {};
   if (options?.force) params.force = 1;
   if (options?.anchorsOnly) params.anchorsOnly = 1;
@@ -339,5 +413,6 @@ export async function fetchPersonalizedFeedCurated(options?: {
   if (!Array.isArray(payload.items)) {
     return { ...payload, items: [] };
   }
+  cache.set(cacheKey, payload, options?.anchorsOnly ? 30 * 60 * 1000 : 10 * 60 * 1000);
   return payload;
 }

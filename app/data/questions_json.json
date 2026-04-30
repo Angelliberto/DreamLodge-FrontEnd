@@ -1,96 +1,722 @@
 [
-  { "id": 1, "dimension": "extraversion", "subfacet": "gregariousness", "medium": "ipip_ab5c", "keying": "positive", "text": "Disfruto estar rodeado de mucha gente." },
-  { "id": 2, "dimension": "extraversion", "subfacet": "gregariousness", "medium": "ipip_ab5c", "keying": "negative", "text": "Prefiero mantenerme apartado en reuniones sociales." },
-  { "id": 3, "dimension": "extraversion", "subfacet": "friendliness", "medium": "ipip_ab5c", "keying": "positive", "text": "Me relaciono con calidez y cercanía." },
-  { "id": 4, "dimension": "extraversion", "subfacet": "friendliness", "medium": "ipip_ab5c", "keying": "negative", "text": "Me cuesta mostrar cercanía con los demás." },
-  { "id": 5, "dimension": "extraversion", "subfacet": "assertiveness", "medium": "ipip_ab5c", "keying": "positive", "text": "Tomo la iniciativa cuando hace falta." },
-  { "id": 6, "dimension": "extraversion", "subfacet": "assertiveness", "medium": "ipip_ab5c", "keying": "negative", "text": "Evito expresar mi opinión con firmeza." },
-  { "id": 7, "dimension": "extraversion", "subfacet": "poise", "medium": "ipip_ab5c", "keying": "positive", "text": "Me siento seguro en situaciones sociales nuevas." },
-  { "id": 8, "dimension": "extraversion", "subfacet": "poise", "medium": "ipip_ab5c", "keying": "negative", "text": "Me pongo tenso cuando estoy con personas desconocidas." },
-  { "id": 9, "dimension": "extraversion", "subfacet": "leadership", "medium": "ipip_ab5c", "keying": "positive", "text": "Me gusta guiar al grupo hacia una meta." },
-  { "id": 10, "dimension": "extraversion", "subfacet": "leadership", "medium": "ipip_ab5c", "keying": "negative", "text": "Prefiero que otros tomen decisiones importantes." },
-  { "id": 11, "dimension": "extraversion", "subfacet": "provocativeness", "medium": "ipip_ab5c", "keying": "positive", "text": "No temo confrontar ideas de forma directa." },
-  { "id": 12, "dimension": "extraversion", "subfacet": "provocativeness", "medium": "ipip_ab5c", "keying": "negative", "text": "Evito cualquier tipo de confrontación." },
-  { "id": 13, "dimension": "extraversion", "subfacet": "self_disclosure", "medium": "ipip_ab5c", "keying": "positive", "text": "Comparto mis emociones con facilidad." },
-  { "id": 14, "dimension": "extraversion", "subfacet": "self_disclosure", "medium": "ipip_ab5c", "keying": "negative", "text": "Guardo mis sentimientos para mí." },
-  { "id": 15, "dimension": "extraversion", "subfacet": "talkativeness", "medium": "ipip_ab5c", "keying": "positive", "text": "Hablo mucho en las conversaciones." },
-  { "id": 16, "dimension": "extraversion", "subfacet": "talkativeness", "medium": "ipip_ab5c", "keying": "negative", "text": "Suelo hablar muy poco." },
-  { "id": 17, "dimension": "extraversion", "subfacet": "sociability", "medium": "ipip_ab5c", "keying": "positive", "text": "Necesito contacto social frecuente para sentirme bien." },
-  { "id": 18, "dimension": "extraversion", "subfacet": "sociability", "medium": "ipip_ab5c", "keying": "negative", "text": "Prefiero la soledad durante la mayor parte del tiempo." },
-
-  { "id": 19, "dimension": "agreeableness", "subfacet": "understanding", "medium": "ipip_ab5c", "keying": "positive", "text": "Comprendo y respeto los sentimientos ajenos." },
-  { "id": 20, "dimension": "agreeableness", "subfacet": "understanding", "medium": "ipip_ab5c", "keying": "negative", "text": "Me cuesta interesarme por los problemas de los demás." },
-  { "id": 21, "dimension": "agreeableness", "subfacet": "warmth", "medium": "ipip_ab5c", "keying": "positive", "text": "Hago que las personas se sientan bienvenidas." },
-  { "id": 22, "dimension": "agreeableness", "subfacet": "warmth", "medium": "ipip_ab5c", "keying": "negative", "text": "Mantengo una actitud fría con la gente." },
-  { "id": 23, "dimension": "agreeableness", "subfacet": "morality", "medium": "ipip_ab5c", "keying": "positive", "text": "Actúo con honestidad incluso cuando nadie mira." },
-  { "id": 24, "dimension": "agreeableness", "subfacet": "morality", "medium": "ipip_ab5c", "keying": "negative", "text": "Rompo reglas cuando me conviene." },
-  { "id": 25, "dimension": "agreeableness", "subfacet": "pleasantness", "medium": "ipip_ab5c", "keying": "positive", "text": "Soy amable y fácil de tratar." },
-  { "id": 26, "dimension": "agreeableness", "subfacet": "pleasantness", "medium": "ipip_ab5c", "keying": "negative", "text": "Critico con dureza a los demás." },
-  { "id": 27, "dimension": "agreeableness", "subfacet": "empathy", "medium": "ipip_ab5c", "keying": "positive", "text": "Detecto con facilidad lo que otros necesitan." },
-  { "id": 28, "dimension": "agreeableness", "subfacet": "empathy", "medium": "ipip_ab5c", "keying": "negative", "text": "Me cuesta conectar con lo que otros sienten." },
-  { "id": 29, "dimension": "agreeableness", "subfacet": "cooperation", "medium": "ipip_ab5c", "keying": "positive", "text": "Valoro más cooperar que competir." },
-  { "id": 30, "dimension": "agreeableness", "subfacet": "cooperation", "medium": "ipip_ab5c", "keying": "negative", "text": "Intento imponer mi voluntad en los demás." },
-  { "id": 31, "dimension": "agreeableness", "subfacet": "sympathy", "medium": "ipip_ab5c", "keying": "positive", "text": "Me conmueve el sufrimiento ajeno." },
-  { "id": 32, "dimension": "agreeableness", "subfacet": "sympathy", "medium": "ipip_ab5c", "keying": "negative", "text": "No suelo sentir compasión por personas vulnerables." },
-  { "id": 33, "dimension": "agreeableness", "subfacet": "tenderness", "medium": "ipip_ab5c", "keying": "positive", "text": "Actúo con ternura y sensibilidad." },
-  { "id": 34, "dimension": "agreeableness", "subfacet": "tenderness", "medium": "ipip_ab5c", "keying": "negative", "text": "Evito mostrar emociones afectivas." },
-  { "id": 35, "dimension": "agreeableness", "subfacet": "nurturance", "medium": "ipip_ab5c", "keying": "positive", "text": "Me esfuerzo por cuidar y apoyar a otros." },
-  { "id": 36, "dimension": "agreeableness", "subfacet": "nurturance", "medium": "ipip_ab5c", "keying": "negative", "text": "No me nace ayudar a los demás." },
-
-  { "id": 37, "dimension": "conscientiousness", "subfacet": "conscientiousness", "medium": "ipip_ab5c", "keying": "positive", "text": "Cumplo mis responsabilidades de forma constante." },
-  { "id": 38, "dimension": "conscientiousness", "subfacet": "conscientiousness", "medium": "ipip_ab5c", "keying": "negative", "text": "Descuido tareas importantes con frecuencia." },
-  { "id": 39, "dimension": "conscientiousness", "subfacet": "efficiency", "medium": "ipip_ab5c", "keying": "positive", "text": "Trabajo de forma eficiente y ordenada." },
-  { "id": 40, "dimension": "conscientiousness", "subfacet": "efficiency", "medium": "ipip_ab5c", "keying": "negative", "text": "Pierdo tiempo en cosas poco importantes." },
-  { "id": 41, "dimension": "conscientiousness", "subfacet": "dutifulness", "medium": "ipip_ab5c", "keying": "positive", "text": "Sigo reglas y compromisos con seriedad." },
-  { "id": 42, "dimension": "conscientiousness", "subfacet": "dutifulness", "medium": "ipip_ab5c", "keying": "negative", "text": "Ignoro normas cuando me resultan incómodas." },
-  { "id": 43, "dimension": "conscientiousness", "subfacet": "purposefulness", "medium": "ipip_ab5c", "keying": "positive", "text": "Tengo metas claras y avanzo hacia ellas." },
-  { "id": 44, "dimension": "conscientiousness", "subfacet": "purposefulness", "medium": "ipip_ab5c", "keying": "negative", "text": "Me distraigo y pierdo el rumbo fácilmente." },
-  { "id": 45, "dimension": "conscientiousness", "subfacet": "organization", "medium": "ipip_ab5c", "keying": "positive", "text": "Cuido los detalles y la calidad de mi trabajo." },
-  { "id": 46, "dimension": "conscientiousness", "subfacet": "organization", "medium": "ipip_ab5c", "keying": "negative", "text": "No presto atención a los detalles." },
-  { "id": 47, "dimension": "conscientiousness", "subfacet": "cautiousness", "medium": "ipip_ab5c", "keying": "positive", "text": "Pienso en riesgos antes de actuar." },
-  { "id": 48, "dimension": "conscientiousness", "subfacet": "cautiousness", "medium": "ipip_ab5c", "keying": "negative", "text": "Actúo impulsivamente sin evaluar consecuencias." },
-  { "id": 49, "dimension": "conscientiousness", "subfacet": "rationality", "medium": "ipip_ab5c", "keying": "positive", "text": "Razono de forma lógica y estructurada." },
-  { "id": 50, "dimension": "conscientiousness", "subfacet": "rationality", "medium": "ipip_ab5c", "keying": "negative", "text": "Tomo decisiones sin mucha lógica." },
-  { "id": 51, "dimension": "conscientiousness", "subfacet": "perfectionism", "medium": "ipip_ab5c", "keying": "positive", "text": "Busco que todo quede lo mejor posible." },
-  { "id": 52, "dimension": "conscientiousness", "subfacet": "perfectionism", "medium": "ipip_ab5c", "keying": "negative", "text": "Me conformo con resultados poco cuidados." },
-  { "id": 53, "dimension": "conscientiousness", "subfacet": "orderliness", "medium": "ipip_ab5c", "keying": "positive", "text": "Mantengo orden en mis espacios y rutinas." },
-  { "id": 54, "dimension": "conscientiousness", "subfacet": "orderliness", "medium": "ipip_ab5c", "keying": "negative", "text": "Vivo rodeado de desorden." },
-
-  { "id": 55, "dimension": "neuroticism", "subfacet": "stability", "medium": "ipip_ab5c", "keying": "negative", "text": "Mantengo estabilidad emocional ante problemas." },
-  { "id": 56, "dimension": "neuroticism", "subfacet": "stability", "medium": "ipip_ab5c", "keying": "positive", "text": "Mis emociones cambian bruscamente." },
-  { "id": 57, "dimension": "neuroticism", "subfacet": "happiness", "medium": "ipip_ab5c", "keying": "negative", "text": "Suelo sentirme animado y seguro." },
-  { "id": 58, "dimension": "neuroticism", "subfacet": "happiness", "medium": "ipip_ab5c", "keying": "positive", "text": "Me siento triste con frecuencia." },
-  { "id": 59, "dimension": "neuroticism", "subfacet": "calmness", "medium": "ipip_ab5c", "keying": "negative", "text": "Conservo la calma en discusiones." },
-  { "id": 60, "dimension": "neuroticism", "subfacet": "calmness", "medium": "ipip_ab5c", "keying": "positive", "text": "Me irrito por cosas pequeñas." },
-  { "id": 61, "dimension": "neuroticism", "subfacet": "moderation", "medium": "ipip_ab5c", "keying": "negative", "text": "Controlo bien mis impulsos y deseos." },
-  { "id": 62, "dimension": "neuroticism", "subfacet": "moderation", "medium": "ipip_ab5c", "keying": "positive", "text": "Me dejo llevar por impulsos del momento." },
-  { "id": 63, "dimension": "neuroticism", "subfacet": "toughness", "medium": "ipip_ab5c", "keying": "negative", "text": "Resisto bien la presión y la crítica." },
-  { "id": 64, "dimension": "neuroticism", "subfacet": "toughness", "medium": "ipip_ab5c", "keying": "positive", "text": "Me derrumbo ante contratiempos." },
-  { "id": 65, "dimension": "neuroticism", "subfacet": "impulse_control", "medium": "ipip_ab5c", "keying": "negative", "text": "Pienso antes de reaccionar emocionalmente." },
-  { "id": 66, "dimension": "neuroticism", "subfacet": "impulse_control", "medium": "ipip_ab5c", "keying": "positive", "text": "Reacciono sin filtrar lo que digo." },
-  { "id": 67, "dimension": "neuroticism", "subfacet": "imperturbability", "medium": "ipip_ab5c", "keying": "negative", "text": "Rara vez me desbordan las emociones." },
-  { "id": 68, "dimension": "neuroticism", "subfacet": "imperturbability", "medium": "ipip_ab5c", "keying": "positive", "text": "Las emociones me sobrepasan con facilidad." },
-  { "id": 69, "dimension": "neuroticism", "subfacet": "cool_headedness", "medium": "ipip_ab5c", "keying": "negative", "text": "Pienso con cabeza fría en situaciones tensas." },
-  { "id": 70, "dimension": "neuroticism", "subfacet": "cool_headedness", "medium": "ipip_ab5c", "keying": "positive", "text": "Actúo impulsivamente cuando estoy bajo presión." },
-  { "id": 71, "dimension": "neuroticism", "subfacet": "tranquility", "medium": "ipip_ab5c", "keying": "negative", "text": "Mi estado emocional suele ser estable durante el día." },
-  { "id": 72, "dimension": "neuroticism", "subfacet": "tranquility", "medium": "ipip_ab5c", "keying": "positive", "text": "Tengo cambios de humor muy frecuentes." },
-
-  { "id": 73, "dimension": "openness", "subfacet": "intellect", "medium": "ipip_ab5c", "keying": "positive", "text": "Disfruto analizar ideas complejas." },
-  { "id": 74, "dimension": "openness", "subfacet": "intellect", "medium": "ipip_ab5c", "keying": "negative", "text": "Evito pensar en temas abstractos." },
-  { "id": 75, "dimension": "openness", "subfacet": "ingenuity", "medium": "ipip_ab5c", "keying": "positive", "text": "Genero ideas novedosas con facilidad." },
-  { "id": 76, "dimension": "openness", "subfacet": "ingenuity", "medium": "ipip_ab5c", "keying": "negative", "text": "Me cuesta proponer ideas nuevas." },
-  { "id": 77, "dimension": "openness", "subfacet": "reflection", "medium": "ipip_ab5c", "keying": "positive", "text": "Dedico tiempo a reflexionar profundamente." },
-  { "id": 78, "dimension": "openness", "subfacet": "reflection", "medium": "ipip_ab5c", "keying": "negative", "text": "Rara vez me detengo a reflexionar." },
-  { "id": 79, "dimension": "openness", "subfacet": "competence", "medium": "ipip_ab5c", "keying": "positive", "text": "Aprendo y aplico conocimientos rápidamente." },
-  { "id": 80, "dimension": "openness", "subfacet": "competence", "medium": "ipip_ab5c", "keying": "negative", "text": "Me cuesta entender asuntos complejos." },
-  { "id": 81, "dimension": "openness", "subfacet": "quickness", "medium": "ipip_ab5c", "keying": "positive", "text": "Capto con rapidez ideas difíciles." },
-  { "id": 82, "dimension": "openness", "subfacet": "quickness", "medium": "ipip_ab5c", "keying": "negative", "text": "Necesito mucho tiempo para comprender conceptos nuevos." },
-  { "id": 83, "dimension": "openness", "subfacet": "introspection", "medium": "ipip_ab5c", "keying": "positive", "text": "Disfruto observar mis pensamientos y motivaciones." },
-  { "id": 84, "dimension": "openness", "subfacet": "introspection", "medium": "ipip_ab5c", "keying": "negative", "text": "Evito analizar mi mundo interior." },
-  { "id": 85, "dimension": "openness", "subfacet": "creativity", "medium": "ipip_ab5c", "keying": "positive", "text": "Encuentro soluciones creativas a problemas complejos." },
-  { "id": 86, "dimension": "openness", "subfacet": "creativity", "medium": "ipip_ab5c", "keying": "negative", "text": "Prefiero soluciones convencionales y conocidas." },
-  { "id": 87, "dimension": "openness", "subfacet": "imagination", "medium": "ipip_ab5c", "keying": "positive", "text": "Tengo una imaginación viva y activa." },
-  { "id": 88, "dimension": "openness", "subfacet": "imagination", "medium": "ipip_ab5c", "keying": "negative", "text": "Me cuesta fantasear o imaginar posibilidades." },
-  { "id": 89, "dimension": "openness", "subfacet": "depth", "medium": "ipip_ab5c", "keying": "positive", "text": "Busco significados profundos en lo que vivo." },
-  { "id": 90, "dimension": "openness", "subfacet": "depth", "medium": "ipip_ab5c", "keying": "negative", "text": "No me interesa ir más allá de la superficie de las cosas." }
+  {
+    "id": 1,
+    "dimension": "extraversion",
+    "subfacet": "gregariousness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Disfruto estar rodeado de mucha gente."
+  },
+  {
+    "id": 20,
+    "dimension": "agreeableness",
+    "subfacet": "understanding",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Me cuesta interesarme por los problemas de los demás."
+  },
+  {
+    "id": 37,
+    "dimension": "conscientiousness",
+    "subfacet": "conscientiousness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Cumplo mis responsabilidades de forma constante."
+  },
+  {
+    "id": 55,
+    "dimension": "neuroticism",
+    "subfacet": "stability",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Mantengo estabilidad emocional ante problemas."
+  },
+  {
+    "id": 73,
+    "dimension": "openness",
+    "subfacet": "intellect",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Disfruto analizar ideas complejas."
+  },
+  {
+    "id": 4,
+    "dimension": "extraversion",
+    "subfacet": "friendliness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Me cuesta mostrar cercanía con los demás."
+  },
+  {
+    "id": 21,
+    "dimension": "agreeableness",
+    "subfacet": "warmth",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Hago que las personas se sientan bienvenidas."
+  },
+  {
+    "id": 40,
+    "dimension": "conscientiousness",
+    "subfacet": "efficiency",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Pierdo tiempo en cosas poco importantes."
+  },
+  {
+    "id": 58,
+    "dimension": "neuroticism",
+    "subfacet": "happiness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Me siento triste con frecuencia."
+  },
+  {
+    "id": 76,
+    "dimension": "openness",
+    "subfacet": "ingenuity",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Me cuesta proponer ideas nuevas."
+  },
+  {
+    "id": 5,
+    "dimension": "extraversion",
+    "subfacet": "assertiveness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Tomo la iniciativa cuando hace falta."
+  },
+  {
+    "id": 24,
+    "dimension": "agreeableness",
+    "subfacet": "morality",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Rompo reglas cuando me conviene."
+  },
+  {
+    "id": 41,
+    "dimension": "conscientiousness",
+    "subfacet": "dutifulness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Sigo reglas y compromisos con seriedad."
+  },
+  {
+    "id": 59,
+    "dimension": "neuroticism",
+    "subfacet": "calmness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Conservo la calma en discusiones."
+  },
+  {
+    "id": 77,
+    "dimension": "openness",
+    "subfacet": "reflection",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Dedico tiempo a reflexionar profundamente."
+  },
+  {
+    "id": 8,
+    "dimension": "extraversion",
+    "subfacet": "poise",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Me pongo tenso cuando estoy con personas desconocidas."
+  },
+  {
+    "id": 25,
+    "dimension": "agreeableness",
+    "subfacet": "pleasantness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Soy amable y fácil de tratar."
+  },
+  {
+    "id": 44,
+    "dimension": "conscientiousness",
+    "subfacet": "purposefulness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Me distraigo y pierdo el rumbo fácilmente."
+  },
+  {
+    "id": 62,
+    "dimension": "neuroticism",
+    "subfacet": "moderation",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Me dejo llevar por impulsos del momento."
+  },
+  {
+    "id": 80,
+    "dimension": "openness",
+    "subfacet": "competence",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Me cuesta entender asuntos complejos."
+  },
+  {
+    "id": 9,
+    "dimension": "extraversion",
+    "subfacet": "leadership",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Me gusta guiar al grupo hacia una meta."
+  },
+  {
+    "id": 28,
+    "dimension": "agreeableness",
+    "subfacet": "empathy",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Me cuesta conectar con lo que otros sienten."
+  },
+  {
+    "id": 45,
+    "dimension": "conscientiousness",
+    "subfacet": "organization",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Cuido los detalles y la calidad de mi trabajo."
+  },
+  {
+    "id": 63,
+    "dimension": "neuroticism",
+    "subfacet": "toughness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Resisto bien la presión y la crítica."
+  },
+  {
+    "id": 81,
+    "dimension": "openness",
+    "subfacet": "quickness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Capto con rapidez ideas difíciles."
+  },
+  {
+    "id": 12,
+    "dimension": "extraversion",
+    "subfacet": "provocativeness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Evito cualquier tipo de confrontación."
+  },
+  {
+    "id": 29,
+    "dimension": "agreeableness",
+    "subfacet": "cooperation",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Valoro más cooperar que competir."
+  },
+  {
+    "id": 48,
+    "dimension": "conscientiousness",
+    "subfacet": "cautiousness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Actúo impulsivamente sin evaluar consecuencias."
+  },
+  {
+    "id": 66,
+    "dimension": "neuroticism",
+    "subfacet": "impulse_control",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Reacciono sin filtrar lo que digo."
+  },
+  {
+    "id": 84,
+    "dimension": "openness",
+    "subfacet": "introspection",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Evito analizar mi mundo interior."
+  },
+  {
+    "id": 13,
+    "dimension": "extraversion",
+    "subfacet": "self_disclosure",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Comparto mis emociones con facilidad."
+  },
+  {
+    "id": 32,
+    "dimension": "agreeableness",
+    "subfacet": "sympathy",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "No suelo sentir compasión por personas vulnerables."
+  },
+  {
+    "id": 49,
+    "dimension": "conscientiousness",
+    "subfacet": "rationality",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Razono de forma lógica y estructurada."
+  },
+  {
+    "id": 67,
+    "dimension": "neuroticism",
+    "subfacet": "imperturbability",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Rara vez me desbordan las emociones."
+  },
+  {
+    "id": 85,
+    "dimension": "openness",
+    "subfacet": "creativity",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Encuentro soluciones creativas a problemas complejos."
+  },
+  {
+    "id": 16,
+    "dimension": "extraversion",
+    "subfacet": "talkativeness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Suelo hablar muy poco."
+  },
+  {
+    "id": 33,
+    "dimension": "agreeableness",
+    "subfacet": "tenderness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Actúo con ternura y sensibilidad."
+  },
+  {
+    "id": 52,
+    "dimension": "conscientiousness",
+    "subfacet": "perfectionism",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Me conformo con resultados poco cuidados."
+  },
+  {
+    "id": 70,
+    "dimension": "neuroticism",
+    "subfacet": "cool_headedness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Actúo impulsivamente cuando estoy bajo presión."
+  },
+  {
+    "id": 88,
+    "dimension": "openness",
+    "subfacet": "imagination",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Me cuesta fantasear o imaginar posibilidades."
+  },
+  {
+    "id": 17,
+    "dimension": "extraversion",
+    "subfacet": "sociability",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Necesito contacto social frecuente para sentirme bien."
+  },
+  {
+    "id": 36,
+    "dimension": "agreeableness",
+    "subfacet": "nurturance",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "No me nace ayudar a los demás."
+  },
+  {
+    "id": 53,
+    "dimension": "conscientiousness",
+    "subfacet": "orderliness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Mantengo orden en mis espacios y rutinas."
+  },
+  {
+    "id": 71,
+    "dimension": "neuroticism",
+    "subfacet": "tranquility",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Mi estado emocional suele ser estable durante el día."
+  },
+  {
+    "id": 89,
+    "dimension": "openness",
+    "subfacet": "depth",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Busco significados profundos en lo que vivo."
+  },
+  {
+    "id": 2,
+    "dimension": "extraversion",
+    "subfacet": "gregariousness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Prefiero mantenerme apartado en reuniones sociales."
+  },
+  {
+    "id": 19,
+    "dimension": "agreeableness",
+    "subfacet": "understanding",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Comprendo y respeto los sentimientos ajenos."
+  },
+  {
+    "id": 38,
+    "dimension": "conscientiousness",
+    "subfacet": "conscientiousness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Descuido tareas importantes con frecuencia."
+  },
+  {
+    "id": 56,
+    "dimension": "neuroticism",
+    "subfacet": "stability",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Mis emociones cambian bruscamente."
+  },
+  {
+    "id": 74,
+    "dimension": "openness",
+    "subfacet": "intellect",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Evito pensar en temas abstractos."
+  },
+  {
+    "id": 3,
+    "dimension": "extraversion",
+    "subfacet": "friendliness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Me relaciono con calidez y cercanía."
+  },
+  {
+    "id": 22,
+    "dimension": "agreeableness",
+    "subfacet": "warmth",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Mantengo una actitud fría con la gente."
+  },
+  {
+    "id": 39,
+    "dimension": "conscientiousness",
+    "subfacet": "efficiency",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Trabajo de forma eficiente y ordenada."
+  },
+  {
+    "id": 57,
+    "dimension": "neuroticism",
+    "subfacet": "happiness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Suelo sentirme animado y seguro."
+  },
+  {
+    "id": 75,
+    "dimension": "openness",
+    "subfacet": "ingenuity",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Genero ideas novedosas con facilidad."
+  },
+  {
+    "id": 6,
+    "dimension": "extraversion",
+    "subfacet": "assertiveness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Evito expresar mi opinión con firmeza."
+  },
+  {
+    "id": 23,
+    "dimension": "agreeableness",
+    "subfacet": "morality",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Actúo con honestidad incluso cuando nadie mira."
+  },
+  {
+    "id": 42,
+    "dimension": "conscientiousness",
+    "subfacet": "dutifulness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Ignoro normas cuando me resultan incómodas."
+  },
+  {
+    "id": 60,
+    "dimension": "neuroticism",
+    "subfacet": "calmness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Me irrito por cosas pequeñas."
+  },
+  {
+    "id": 78,
+    "dimension": "openness",
+    "subfacet": "reflection",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Rara vez me detengo a reflexionar."
+  },
+  {
+    "id": 7,
+    "dimension": "extraversion",
+    "subfacet": "poise",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Me siento seguro en situaciones sociales nuevas."
+  },
+  {
+    "id": 26,
+    "dimension": "agreeableness",
+    "subfacet": "pleasantness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Critico con dureza a los demás."
+  },
+  {
+    "id": 43,
+    "dimension": "conscientiousness",
+    "subfacet": "purposefulness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Tengo metas claras y avanzo hacia ellas."
+  },
+  {
+    "id": 61,
+    "dimension": "neuroticism",
+    "subfacet": "moderation",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Controlo bien mis impulsos y deseos."
+  },
+  {
+    "id": 79,
+    "dimension": "openness",
+    "subfacet": "competence",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Aprendo y aplico conocimientos rápidamente."
+  },
+  {
+    "id": 10,
+    "dimension": "extraversion",
+    "subfacet": "leadership",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Prefiero que otros tomen decisiones importantes."
+  },
+  {
+    "id": 27,
+    "dimension": "agreeableness",
+    "subfacet": "empathy",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Detecto con facilidad lo que otros necesitan."
+  },
+  {
+    "id": 46,
+    "dimension": "conscientiousness",
+    "subfacet": "organization",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "No presto atención a los detalles."
+  },
+  {
+    "id": 64,
+    "dimension": "neuroticism",
+    "subfacet": "toughness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Me derrumbo ante contratiempos."
+  },
+  {
+    "id": 82,
+    "dimension": "openness",
+    "subfacet": "quickness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Necesito mucho tiempo para comprender conceptos nuevos."
+  },
+  {
+    "id": 11,
+    "dimension": "extraversion",
+    "subfacet": "provocativeness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "No temo confrontar ideas de forma directa."
+  },
+  {
+    "id": 30,
+    "dimension": "agreeableness",
+    "subfacet": "cooperation",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Intento imponer mi voluntad en los demás."
+  },
+  {
+    "id": 47,
+    "dimension": "conscientiousness",
+    "subfacet": "cautiousness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Pienso en riesgos antes de actuar."
+  },
+  {
+    "id": 65,
+    "dimension": "neuroticism",
+    "subfacet": "impulse_control",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Pienso antes de reaccionar emocionalmente."
+  },
+  {
+    "id": 83,
+    "dimension": "openness",
+    "subfacet": "introspection",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Disfruto observar mis pensamientos y motivaciones."
+  },
+  {
+    "id": 14,
+    "dimension": "extraversion",
+    "subfacet": "self_disclosure",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Guardo mis sentimientos para mí."
+  },
+  {
+    "id": 31,
+    "dimension": "agreeableness",
+    "subfacet": "sympathy",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Me conmueve el sufrimiento ajeno."
+  },
+  {
+    "id": 50,
+    "dimension": "conscientiousness",
+    "subfacet": "rationality",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Tomo decisiones sin mucha lógica."
+  },
+  {
+    "id": 68,
+    "dimension": "neuroticism",
+    "subfacet": "imperturbability",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Las emociones me sobrepasan con facilidad."
+  },
+  {
+    "id": 86,
+    "dimension": "openness",
+    "subfacet": "creativity",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Prefiero soluciones convencionales y conocidas."
+  },
+  {
+    "id": 15,
+    "dimension": "extraversion",
+    "subfacet": "talkativeness",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Hablo mucho en las conversaciones."
+  },
+  {
+    "id": 34,
+    "dimension": "agreeableness",
+    "subfacet": "tenderness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Evito mostrar emociones afectivas."
+  },
+  {
+    "id": 51,
+    "dimension": "conscientiousness",
+    "subfacet": "perfectionism",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Busco que todo quede lo mejor posible."
+  },
+  {
+    "id": 69,
+    "dimension": "neuroticism",
+    "subfacet": "cool_headedness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Pienso con cabeza fría en situaciones tensas."
+  },
+  {
+    "id": 87,
+    "dimension": "openness",
+    "subfacet": "imagination",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Tengo una imaginación viva y activa."
+  },
+  {
+    "id": 18,
+    "dimension": "extraversion",
+    "subfacet": "sociability",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Prefiero la soledad durante la mayor parte del tiempo."
+  },
+  {
+    "id": 35,
+    "dimension": "agreeableness",
+    "subfacet": "nurturance",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Me esfuerzo por cuidar y apoyar a otros."
+  },
+  {
+    "id": 54,
+    "dimension": "conscientiousness",
+    "subfacet": "orderliness",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "Vivo rodeado de desorden."
+  },
+  {
+    "id": 72,
+    "dimension": "neuroticism",
+    "subfacet": "tranquility",
+    "medium": "ipip_ab5c",
+    "keying": "positive",
+    "text": "Tengo cambios de humor muy frecuentes."
+  },
+  {
+    "id": 90,
+    "dimension": "openness",
+    "subfacet": "depth",
+    "medium": "ipip_ab5c",
+    "keying": "negative",
+    "text": "No me interesa ir más allá de la superficie de las cosas."
+  }
 ]

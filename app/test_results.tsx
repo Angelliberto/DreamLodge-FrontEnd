@@ -13,17 +13,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BottomNavigation } from '../src/components/BottomNavigation';
-import { CulturalGridItem } from '../src/components/cultural/CulturalGridItem';
-import { NavigationBar } from '../src/components/NavigationBar';
-import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
-import { useAuth } from '../src/contexts/AuthContext';
-import {
-  AB5C_SUBFACET_ORDER,
-  DIMENSION_NAMES,
-  orderedDimensionKeys,
-  SUBFACET_INFO
-} from '../src/constants/oceanTestCopy';
 import {
   ArtisticDescriptionPayload,
   fetchPersonalizedFeedCurated,
@@ -32,6 +21,18 @@ import {
   invalidateArtisticDescriptionCache,
 } from '@/api/client';
 import type { CulturalItem } from '@/types/CulturalItem';
+import { BottomNavigation } from '../src/components/BottomNavigation';
+import { NavigationBar } from '../src/components/NavigationBar';
+import { DimensionSelectorTabs } from '../src/components/test-results/DimensionSelectorTabs';
+import { GenreRecommendationsBlock } from '../src/components/test-results/GenreRecommendationsBlock';
+import { RecommendedWorksBlock } from '../src/components/test-results/RecommendedWorksBlock';
+import { SelectedDimensionDetailsBlock } from '../src/components/test-results/SelectedDimensionDetailsBlock';
+import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
+import {
+  DIMENSION_NAMES,
+  orderedDimensionKeys,
+} from '../src/constants/oceanTestCopy';
+import { useAuth } from '../src/contexts/AuthContext';
 
 const DIMENSION_ICONS: Record<string, any> = {
   openness: Star,
@@ -41,15 +42,72 @@ const DIMENSION_ICONS: Record<string, any> = {
   neuroticism: Brain
 };
 
-/** Cuántas subfacetas mostrar antes del botón "Ver más". */
-const SUBFACETS_PREVIEW_COUNT = 3;
-
 function getScoreLabel(score: number): { label: string; description: string } {
   if (score >= 4.2) return { label: 'Alto', description: 'Tienes un nivel muy alto' };
   if (score >= 3.5) return { label: 'Moderado-Alto', description: 'Tienes un nivel moderado-alto' };
   if (score >= 2.5) return { label: 'Moderado', description: 'Tienes un nivel moderado' };
   if (score >= 1.5) return { label: 'Bajo-Moderado', description: 'Tienes un nivel bajo-moderado' };
   return { label: 'Bajo', description: 'Tienes un nivel bajo' };
+}
+
+function normalizeLegacyScores(scores: any) {
+  const dimensions: Record<string, number> = {};
+  const subfacets: Record<string, Record<string, number[]>> = {};
+
+  if (!scores || typeof scores !== 'object') {
+    return { dimensions, subfacets };
+  }
+
+  Object.keys(scores).forEach((dimension) => {
+    const scoreObj = scores[dimension];
+    if (!scoreObj || typeof scoreObj.total !== 'number') return;
+
+    dimensions[dimension] = scoreObj.total;
+    const facetKeys = Object.keys(scoreObj).filter(
+      (key) => key !== 'total' && typeof scoreObj[key] === 'number'
+    );
+
+    if (!facetKeys.length) return;
+
+    subfacets[dimension] = {};
+    facetKeys.forEach((key) => {
+      const normalizedValue = scoreObj[key];
+      const originalValue = ((normalizedValue / 5) * 4) - 2;
+      subfacets[dimension][key] = [originalValue];
+    });
+  });
+
+  return { dimensions, subfacets };
+}
+
+function normalizeTestResult(rawResult: any) {
+  if (
+    rawResult?.dimensions &&
+    typeof rawResult.dimensions === 'object' &&
+    Object.keys(rawResult.dimensions).length > 0
+  ) {
+    const hasSubfacets =
+      rawResult.subfacets &&
+      typeof rawResult.subfacets === 'object' &&
+      Object.keys(rawResult.subfacets).length > 0;
+    const normalized: any = {
+      dimensions: rawResult.dimensions,
+      testType: hasSubfacets ? 'deep' : rawResult.testType || 'quick',
+      timestamp: rawResult.timestamp || rawResult.updatedAt || rawResult.createdAt
+    };
+    if (hasSubfacets) normalized.subfacets = rawResult.subfacets;
+    return normalized;
+  }
+
+  const { dimensions, subfacets } = normalizeLegacyScores(rawResult?.scores);
+  const hasLegacySubfacets = Object.keys(subfacets).length > 0;
+  const normalized: any = {
+    dimensions,
+    testType: hasLegacySubfacets ? 'deep' : rawResult?.testType || 'quick',
+    timestamp: rawResult?.timestamp || rawResult?.updatedAt || rawResult?.createdAt
+  };
+  if (hasLegacySubfacets) normalized.subfacets = subfacets;
+  return normalized;
 }
 
 export default function TestResultsScreen() {
@@ -78,9 +136,13 @@ export default function TestResultsScreen() {
 
   const { recItemWidth, recGap } = useMemo(() => {
     const screenWidth = Dimensions.get('window').width;
-    const padding = 16 * 2;
+    // Container real en esta sección:
+    // - wrapper externo: mx-4 (16 * 2)
+    // - card del perfil artístico: p-6 (24 * 2)
+    const horizontalPadding = (16 * 2) + (24 * 2);
     const gap = 8;
-    const itemWidth = (screenWidth - padding - gap * 2) / 3;
+    const columns = 3;
+    const itemWidth = (screenWidth - horizontalPadding - gap * (columns - 1)) / columns;
     return { recItemWidth: itemWidth, recGap: gap };
   }, []);
 
@@ -176,69 +238,7 @@ export default function TestResultsScreen() {
               return tb - ta;
             });
             const latestResult = sorted[0];
-
-            let resultData: any;
-
-            // Formato normalizado desde el backend (GET /ocean/user/:userId)
-            if (
-              latestResult.dimensions &&
-              typeof latestResult.dimensions === 'object' &&
-              Object.keys(latestResult.dimensions).length > 0
-            ) {
-              const hasSubfacets =
-                latestResult.subfacets &&
-                typeof latestResult.subfacets === 'object' &&
-                Object.keys(latestResult.subfacets).length > 0;
-              const testType =
-                hasSubfacets ? 'deep' : latestResult.testType || 'quick';
-
-              resultData = {
-                dimensions: latestResult.dimensions,
-                testType,
-                timestamp: latestResult.timestamp || latestResult.updatedAt || latestResult.createdAt
-              };
-              if (hasSubfacets) {
-                resultData.subfacets = latestResult.subfacets;
-              }
-            } else {
-              // Legado: scores anidados (total + subfacetas en 0–5)
-              const dimensions: Record<string, number> = {};
-              const subfacets: Record<string, Record<string, number[]>> = {};
-
-              if (latestResult.scores) {
-                Object.keys(latestResult.scores).forEach((dimension) => {
-                  const scoreObj = latestResult.scores[dimension];
-                  if (scoreObj && typeof scoreObj.total === 'number') {
-                    dimensions[dimension] = scoreObj.total;
-
-                    if (scoreObj) {
-                      const facetKeys = Object.keys(scoreObj).filter(
-                        (key) => key !== 'total' && typeof scoreObj[key] === 'number'
-                      );
-                      if (facetKeys.length > 0) {
-                        subfacets[dimension] = {};
-                        facetKeys.forEach((key) => {
-                          const normalizedValue = scoreObj[key];
-                          const originalValue = ((normalizedValue / 5) * 4) - 2;
-                          subfacets[dimension][key] = [originalValue];
-                        });
-                      }
-                    }
-                  }
-                });
-              }
-
-              const hasLegacySubfacets = Object.keys(subfacets).length > 0;
-              resultData = {
-                dimensions,
-                testType: hasLegacySubfacets ? 'deep' : latestResult.testType || 'quick',
-                timestamp: latestResult.updatedAt || latestResult.createdAt
-              };
-
-              if (hasLegacySubfacets) {
-                resultData.subfacets = subfacets;
-              }
-            }
+            const resultData = normalizeTestResult(latestResult);
 
             setResults(resultData);
             setArtisticProfile(null);
@@ -247,42 +247,7 @@ export default function TestResultsScreen() {
               generateArtisticDescriptionForUser(user._id, false);
             }
           } else if (apiResults && !Array.isArray(apiResults) && apiResults.scores) {
-            // Single result object with scores
-            const dimensions: Record<string, number> = {};
-            const subfacets: Record<string, Record<string, number[]>> = {};
-            
-            Object.keys(apiResults.scores).forEach((dimension) => {
-              const scoreObj = apiResults.scores[dimension];
-              if (scoreObj && typeof scoreObj.total === 'number') {
-                dimensions[dimension] = scoreObj.total;
-
-                if (scoreObj) {
-                  const facetKeys = Object.keys(scoreObj).filter(
-                    (key) => key !== 'total' && typeof scoreObj[key] === 'number'
-                  );
-                  if (facetKeys.length > 0) {
-                    subfacets[dimension] = {};
-                    facetKeys.forEach((key) => {
-                      const normalizedValue = scoreObj[key];
-                      const originalValue = ((normalizedValue / 5) * 4) - 2;
-                      subfacets[dimension][key] = [originalValue];
-                    });
-                  }
-                }
-              }
-            });
-
-            const hasSingleSubfacets = Object.keys(subfacets).length > 0;
-            const resultData: any = {
-              dimensions,
-              testType: hasSingleSubfacets ? 'deep' : apiResults.testType || 'quick',
-              timestamp: apiResults.updatedAt || apiResults.createdAt
-            };
-
-            if (hasSingleSubfacets) {
-              resultData.subfacets = subfacets;
-            }
-            
+            const resultData = normalizeTestResult(apiResults);
             setResults(resultData);
             setArtisticProfile(null);
 
@@ -442,48 +407,15 @@ export default function TestResultsScreen() {
                     </Text>
                   ) : null}
                   <Text className="mb-4 leading-6 text-slate-300">{artisticProfile.description}</Text>
-                  {artisticProfile.recommendations && artisticProfile.recommendations.length > 0 && (
-                    <View className="mb-5">
-                      <Text className="mb-2 text-sm text-slate-400">Te recomendamos:</Text>
-                      <Text className="text-slate-300">{artisticProfile.recommendations.join(', ')}.</Text>
-                    </View>
-                  )}
-
-                  {(profileWorksLoading ||
-                    !!suggestedWorksKey ||
-                    profileWorkItems.length > 0) && (
-                    <View className="mt-5 border-t border-slate-700/60 pt-4">
-                      <Text className="mb-1 text-sm font-semibold text-white">
-                        Obras recomendadas para ti
-                      </Text>
-                      <Text className="mb-3 text-xs text-slate-500">
-                        Son las que ves al inicio en Explorar; allí se añade más variedad a partir del mismo perfil.
-                      </Text>
-                      {profileWorksLoading ? (
-                        <View className="items-center py-4">
-                          <ActivityIndicator color="#a855f7" />
-                          <Text className="mt-2 text-xs text-slate-500">Resolviendo obras…</Text>
-                        </View>
-                      ) : profileWorkItems.length > 0 ? (
-                        <View className="flex-row flex-wrap">
-                          {profileWorkItems.map((item, index) => (
-                            <CulturalGridItem
-                              key={item.id}
-                              item={item}
-                              itemWidth={recItemWidth}
-                              gap={recGap}
-                              index={index}
-                              onPress={handleRecommendationPress}
-                            />
-                          ))}
-                        </View>
-                      ) : suggestedWorksKey ? (
-                        <Text className="text-xs leading-5 text-slate-500">
-                          No encontramos coincidencias en las APIs para estas obras. Prueba en Explorar más tarde.
-                        </Text>
-                      ) : null}
-                    </View>
-                  )}
+                  <GenreRecommendationsBlock artisticProfile={artisticProfile} />
+                  <RecommendedWorksBlock
+                    profileWorksLoading={profileWorksLoading}
+                    suggestedWorksKey={suggestedWorksKey}
+                    profileWorkItems={profileWorkItems}
+                    recItemWidth={recItemWidth}
+                    recGap={recGap}
+                    handleRecommendationPress={handleRecommendationPress}
+                  />
                 </>
               ) : (
                 <Text className="leading-6 text-slate-400">
@@ -541,194 +473,22 @@ export default function TestResultsScreen() {
               </View>
 
               <View className="mt-8 border-t border-slate-700/60 pt-6">
-                <View className="mb-6 flex-row gap-1">
-                  {dimensionKeysInOrder.map((key) => {
-                    const dimInfo = DIMENSION_NAMES[key];
-                    if (dimInfo === undefined) return null;
-                    const Icon = DIMENSION_ICONS[key] || Star;
-                    const isSelected = selectedDimension === key;
-                    return (
-                      <TouchableOpacity
-                        key={key}
-                        onPress={() => setSelectedDimension(key)}
-                        className={`min-w-0 flex-1 items-center justify-center rounded-lg py-2 px-0.5 ${
-                          isSelected ? 'bg-purple-600' : 'bg-slate-700/50'
-                        }`}
-                      >
-                        <Icon size={17} color={isSelected ? 'white' : '#94a3b8'} />
-                        <Text
-                          className={`mt-1 text-center text-[9px] leading-[11px] ${
-                            isSelected ? 'text-white' : 'text-slate-400'
-                          }`}
-                          numberOfLines={3}
-                        >
-                          {dimInfo.es}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                <DimensionSelectorTabs
+                  dimensionKeysInOrder={dimensionKeysInOrder}
+                  selectedDimension={selectedDimension}
+                  setSelectedDimension={setSelectedDimension}
+                  dimensionIcons={DIMENSION_ICONS}
+                />
 
-              {/* Selected Dimension Details */}
-              {selectedDimension && normalizedDimensions[selectedDimension] !== undefined && (
-                <View>
-                  <View className="flex-row items-center gap-2 mb-4">
-                    <Star size={24} color={DIMENSION_NAMES[selectedDimension].color} />
-                    <Text className="text-xl font-bold text-white">
-                      {DIMENSION_NAMES[selectedDimension].es}
-                    </Text>
-                  </View>
-                  
-                  <Text className="text-slate-300 mb-4 leading-6">
-                    {DIMENSION_NAMES[selectedDimension].descripcion}
-                  </Text>
-              
-
-                  {/* Puntuación del rasgo  */}
-                  {(() => {
-                    const scoreVal = normalizedDimensions[selectedDimension];
-                    const dim = DIMENSION_NAMES[selectedDimension];
-                    const scoreLabel = getScoreLabel(scoreVal);
-                    return (
-                      <View
-                        className="mb-2 overflow-hidden rounded-xl border border-slate-600/35 bg-slate-900/45"
-                        style={{ borderLeftWidth: 4, borderLeftColor: dim.color }}
-                      >
-                        <View className="flex-row items-center gap-4 p-4">
-                          <View>
-                            <Text className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                              Puntuación
-                            </Text>
-                            <Text className="text-3xl font-bold text-white">
-                              {scoreVal.toFixed(1)}
-                              <Text className="text-lg font-semibold text-slate-500">/5</Text>
-                            </Text>
-                          </View>
-                          <View className="min-w-0 flex-1 border-l border-slate-600/50 pl-4">
-                            <View className="mb-1.5 self-start rounded-md bg-slate-800/90 px-2.5 py-1">
-                              <Text className="text-xs font-semibold" style={{ color: dim.color }}>
-                                {scoreLabel.label}
-                              </Text>
-                            </View>
-                            <Text className="text-sm leading-5 text-slate-300">
-                              {scoreLabel.description} en {dim.es.toLowerCase()}.
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  })()}
-
-                  {/* Subfacets (only for deep test): preview + "Ver más" */}
-                  {isDeep && results.subfacets && results.subfacets[selectedDimension] && (
-                    <View className="rounded-xl border border-slate-600/40 bg-slate-900/40 p-4">
-                      <Text className="text-white font-semibold text-base mb-1">Facetas AB5C</Text>
-                      <Text className="text-slate-500 text-xs mb-3 leading-5">
-                        Cada tarjeta es una subfaceta del modelo IPIP (AB5C). La barra resume tu puntuación en 0–5.
-                      </Text>
-                      {(() => {
-                        const order = AB5C_SUBFACET_ORDER[selectedDimension] || [];
-                        const entries = Object.entries(results.subfacets[selectedDimension] as Record<string, number[]>);
-                        const sorted = [...entries].sort(([a], [b]) => {
-                          const ia = order.indexOf(a);
-                          const ib = order.indexOf(b);
-                          if (ia === -1 && ib === -1) return a.localeCompare(b);
-                          if (ia === -1) return 1;
-                          if (ib === -1) return -1;
-                          return ia - ib;
-                        });
-                        const dimColor = DIMENSION_NAMES[selectedDimension].color;
-                        const total = sorted.length;
-                        const hasMore = total > SUBFACETS_PREVIEW_COUNT;
-                        const visible = subfacetsShowAll
-                          ? sorted
-                          : sorted.slice(0, SUBFACETS_PREVIEW_COUNT);
-                        const restCount = total - SUBFACETS_PREVIEW_COUNT;
-
-                        return (
-                          <>
-                            <View className="gap-1">
-                              {visible.map(([subfacet, scores]: [string, number[]]) => {
-                                const average =
-                                  scores.reduce((sum: number, val: number) => sum + val, 0) / scores.length;
-                                const normalizedScore = ((average + 2) / 4) * 5;
-                                const info = SUBFACET_INFO[subfacet];
-                                const subfacetName = info?.label ?? subfacet;
-                                const subfacetDesc = info?.descripcion;
-                                const pct = (normalizedScore / 5) * 100;
-
-                                return (
-                                  <View
-                                    key={subfacet}
-                                    className="overflow-hidden rounded-xl border border-slate-600/35 bg-slate-800/60"
-                                  >
-                                    <View
-                                      className="flex-row"
-                                      style={{ borderLeftWidth: 4, borderLeftColor: dimColor }}
-                                    >
-                                      <View className="flex-1 p-3">
-                                        <View className="flex-row items-start justify-between gap-2">
-                                          <View className="min-w-0 flex-1 pr-1">
-                                            <Text className="text-base font-semibold leading-snug text-white">
-                                              {subfacetName}
-                                            </Text>
-                                            {subfacetDesc ? (
-                                              <Text className="mt-1.5 text-xs leading-5 text-slate-400">
-                                                {subfacetDesc}
-                                              </Text>
-                                            ) : null}
-                                          </View>
-                                          <View className="shrink-0 items-end rounded-lg border border-slate-600/50 bg-slate-900/80 px-2 py-1.5">
-                                            <Text className="text-lg font-bold leading-none text-white">
-                                              {normalizedScore.toFixed(1)}
-                                            </Text>
-                                            <Text className="text-[10px] text-slate-500">de 5</Text>
-                                          </View>
-                                        </View>
-                                        <View className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-700/90">
-                                          <View
-                                            className="h-full rounded-full"
-                                            style={{
-                                              width: `${pct}%`,
-                                              backgroundColor: dimColor
-                                            }}
-                                          />
-                                        </View>
-                                      </View>
-                                    </View>
-                                  </View>
-                                );
-                              })}
-                            </View>
-                            {hasMore ? (
-                              <TouchableOpacity
-                                className="mt-2 rounded-xl border border-slate-600/60 bg-slate-800/70 py-3.5"
-                                onPress={() => setSubfacetsShowAll((v) => !v)}
-                                activeOpacity={0.75}
-                              >
-                                <Text className="text-center text-sm font-semibold text-purple-300">
-                                  {subfacetsShowAll
-                                    ? 'Mostrar menos'
-                                    : `Ver ${restCount} ${restCount === 1 ? 'faceta más' : 'facetas más'}`}
-                                </Text>
-                              </TouchableOpacity>
-                            ) : null}
-                          </>
-                        );
-                      })()}
-                    </View>
-                  )}
-
-                  {!isDeep && (
-                    <View className="mt-4 p-4 bg-slate-700/50 rounded-xl">
-                      <Text className="text-slate-300 text-sm">
-                        Realiza el <Text className="font-bold underline">Análisis Profundo</Text> para ver las{' '}
-                        {AB5C_SUBFACET_ORDER.openness.length} facetas AB5C por rasgo (modelo IPIP).
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
+              <SelectedDimensionDetailsBlock
+                selectedDimension={selectedDimension}
+                normalizedDimensions={normalizedDimensions}
+                isDeep={isDeep}
+                subfacets={results.subfacets}
+                subfacetsShowAll={subfacetsShowAll}
+                setSubfacetsShowAll={setSubfacetsShowAll}
+                getScoreLabel={getScoreLabel}
+              />
               </View>
             </View>
             )}

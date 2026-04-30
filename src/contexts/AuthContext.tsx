@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { getBackendEndpoint } from '../config/api';
@@ -37,6 +37,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [hasTestResults, setHasTestResults] = useState(false);
   const [hasQuickTest, setHasQuickTest] = useState(false);
   const [hasDeepTest, setHasDeepTest] = useState(false);
+  const activeUserIdRef = useRef<string | null>(null);
+
+  const clearClientCacheForUserSwitch = useCallback(async () => {
+    // User-scoped data must be isolated between sessions.
+    cache.deleteByPattern(/^favorites|^pending|^testResults:|^artisticDescription:|^personalizedFeed:/);
+    await storage.removeItem('chat_current_conversation');
+  }, []);
 
   useEffect(() => {
     loadSession();
@@ -97,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (token && userData) {
         const parsedUser = JSON.parse(userData);
+        activeUserIdRef.current = parsedUser?._id || null;
         setUser(parsedUser);
         // Check if user has test results
         await checkTestResultsForUser(parsedUser._id);
@@ -160,10 +168,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const saveSession = useCallback(async (token: string, user: User) => {
+    const nextUserId = user?._id ? String(user._id) : null;
+    const prevUserId = activeUserIdRef.current;
+    if (prevUserId && nextUserId && prevUserId !== nextUserId) {
+      await clearClientCacheForUserSwitch();
+    }
     await storage.setItem('userToken', token);
     await storage.setItem('userProfile', JSON.stringify(user));
+    activeUserIdRef.current = nextUserId;
     setUser(user);
-  }, []);
+  }, [clearClientCacheForUserSwitch]);
 
   const mergeUser = useCallback(async (partial: Partial<User>) => {
     setUser((prev) => {
@@ -262,9 +276,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await storage.removeItem('userToken');
     await storage.removeItem('userProfile');
     // Clear user-related cache
-    cache.deleteByPattern(/^favorites|^pending|^testResults:/);
+    cache.deleteByPattern(/^favorites|^pending|^testResults:|^artisticDescription:|^personalizedFeed:/);
     // Clear chat current conversation
     await storage.removeItem('chat_current_conversation');
+    activeUserIdRef.current = null;
     setUser(null);
     setHasTestResults(false);
     setHasQuickTest(false);

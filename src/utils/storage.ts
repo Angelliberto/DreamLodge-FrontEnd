@@ -12,6 +12,17 @@ const SECURE_STORE_MAX_SIZE = 2048;
 const CHUNK_SIZE = 1800;
 
 /**
+ * Normalize keys to be compatible with expo-secure-store.
+ * Allowed chars: a-zA-Z0-9 . - _
+ */
+function normalizeSecureStoreKey(key: string): string {
+  const raw = String(key ?? '').trim();
+  if (!raw) return 'storage_key';
+  const normalized = raw.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return normalized.length > 0 ? normalized : 'storage_key';
+}
+
+/**
  * Calculate approximate byte size of a string
  */
 function getStringByteSize(str: string): number {
@@ -226,7 +237,8 @@ export const storage = {
     } else {
       // Use SecureStore for mobile with chunking support
       try {
-        return await retrieveChunked(key);
+        const safeKey = normalizeSecureStoreKey(key);
+        return await retrieveChunked(safeKey);
       } catch (error: any) {
         console.error('Error reading from SecureStore:', error);
         return null;
@@ -243,6 +255,7 @@ export const storage = {
         throw error;
       }
     } else {
+      const safeKey = normalizeSecureStoreKey(key);
       // Try to compress JSON data if it's too large
       const sizeInBytes = getStringByteSize(value);
       let finalValue = value;
@@ -263,8 +276,8 @@ export const storage = {
       if (finalSize > SECURE_STORE_MAX_SIZE) {
         // Store using chunking mechanism
         try {
-          await storeChunked(key, finalValue);
-          console.log(`Stored ${key} in ${Math.ceil(finalSize / CHUNK_SIZE)} chunks (${finalSize} bytes total)`);
+          await storeChunked(safeKey, finalValue);
+          console.log(`Stored ${safeKey} in ${Math.ceil(finalSize / CHUNK_SIZE)} chunks (${finalSize} bytes total)`);
         } catch (error: any) {
           console.error('Error writing chunked data to SecureStore:', error);
           throw error;
@@ -273,9 +286,9 @@ export const storage = {
         // Store normally for small values
         try {
           // First, clean up any existing chunks
-          await removeChunked(key);
+          await removeChunked(safeKey);
           // Then store as single value
-          await SecureStore.setItemAsync(key, finalValue);
+          await SecureStore.setItemAsync(safeKey, finalValue);
         } catch (error: any) {
           console.error('Error writing to SecureStore:', error);
           throw error;
@@ -294,7 +307,8 @@ export const storage = {
     } else {
       // Use SecureStore for mobile with chunking support
       try {
-        await removeChunked(key);
+        const safeKey = normalizeSecureStoreKey(key);
+        await removeChunked(safeKey);
       } catch (error) {
         // Ignore errors - key might not exist
         console.warn('Error removing from SecureStore (key may not exist):', error);
