@@ -95,27 +95,28 @@ export default function LoginScreen() {
                 />
 
                 <FormInputField<LoginRequest>
-                  label="Contraseña"
-                  name="password"
-                  control={control}
-                  errors={errors}
-                  placeholder="••••••••"
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="current-password"
-                  textContentType="password"
-                  rules={{
-                    required: "La contraseña es requerida",
-                    minLength: {
-                      value: 8,
-                      message: "La contraseña debe tener al menos 8 caracteres",
-                    },
-                  }}
-                  icon={
-                    <Lock size={18} color={errors.password ? "#ef4444" : "#64748b"} />
-                  }
-                />
+                label="Contraseña"
+                name="password"
+                control={control}
+                errors={errors}
+                placeholder="••••••••"
+                secureTextEntry
+                showPasswordToggle
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="current-password"
+                textContentType="password"
+                rules={{
+                  required: "La contraseña es requerida",
+                  minLength: {
+                    value: 8,
+                    message: "La contraseña debe tener al menos 8 caracteres",
+                  },
+                }}
+                icon={
+                  <Lock size={18} color={errors.password ? "#ef4444" : "#64748b"} />
+                }
+              />
 
                 {/* Forgot password */}
                 <TouchableOpacity

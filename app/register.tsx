@@ -216,58 +216,60 @@ export default function RegisterScreen() {
                 />
 
                 <FormInputField<RegisterRequest>
-                  label="Contraseña"
-                  name="password"
-                  control={control}
-                  errors={errors}
-                  placeholder="••••••••"
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="new-password"
-                  textContentType="newPassword"
-                  rules={{
-                    required: "La contraseña es requerida",
-                    minLength: {
-                      value: 8,
-                      message: "La contraseña debe tener al menos 8 caracteres",
-                    },
-                    maxLength: {
-                      value: 50,
-                      message: "La contraseña no puede tener más de 50 caracteres",
-                    },
-                  }}
-                  icon={
-                    <Lock
-                      size={18}
-                      color={errors.password ? "#ef4444" : "#64748b"}
-                    />
-                  }
-                />
+                label="Contraseña"
+                name="password"
+                control={control}
+                errors={errors}
+                placeholder="••••••••"
+                secureTextEntry
+                showPasswordToggle
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="new-password"
+                textContentType="newPassword"
+                rules={{
+                  required: "La contraseña es requerida",
+                  minLength: {
+                    value: 8,
+                    message: "La contraseña debe tener al menos 8 caracteres",
+                  },
+                  maxLength: {
+                    value: 50,
+                    message: "La contraseña no puede tener más de 50 caracteres",
+                  },
+                }}
+                icon={
+                  <Lock
+                    size={18}
+                    color={errors.password ? "#ef4444" : "#64748b"}
+                  />
+                }
+              />
 
                 <FormInputField<RegisterRequest>
-                  label="Confirmar Contraseña"
-                  name="confirmPassword"
-                  control={control}
-                  errors={errors}
-                  placeholder="••••••••"
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="new-password"
-                  textContentType="newPassword"
-                  rules={{
-                    required: "Por favor confirma tu contraseña",
-                    validate: (value) =>
-                      value === password || "Las contraseñas no coinciden",
-                  }}
-                  icon={
-                    <Lock
-                      size={18}
-                      color={errors.confirmPassword ? "#ef4444" : "#64748b"}
-                    />
-                  }
+              label="Confirmar Contraseña"
+              name="confirmPassword"
+              control={control}
+              errors={errors}
+              placeholder="••••••••"
+              secureTextEntry
+              showPasswordToggle
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="new-password"
+              textContentType="newPassword"
+              rules={{
+                required: "Por favor confirma tu contraseña",
+                validate: (value) =>
+                  value === password || "Las contraseñas no coinciden",
+              }}
+              icon={
+                <Lock
+                  size={18}
+                  color={errors.confirmPassword ? "#ef4444" : "#64748b"}
                 />
+              }
+            />
 
                 <Button title="Crear Cuenta" onPress={handleSubmit(onSubmit)} loading={isSubmitting} className="mt-4"
                 />
