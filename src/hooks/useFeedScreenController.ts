@@ -34,6 +34,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   const [showSearchScreen, setShowSearchScreen] = useState(false);
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<CulturalItem[]>([]);
+  const [favoritesRecommendations, setFavoritesRecommendations] = useState<CulturalItem[]>([]);
   const [searchItems, setSearchItems] = useState<CulturalItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -123,19 +124,30 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
 
   const runGlobalDefault = useCallback(async (signal?: AbortSignal) => {
     const data = await fetchGlobalDefaultItems(signal);
-    if (!signal?.aborted) setItems(data);
+    if (!signal?.aborted) {
+      setItems(data);
+      setFavoritesRecommendations([]);
+    }
   }, [fetchGlobalDefaultItems]);
 
   const loadPersonalizedDefault = useCallback(async (signal?: AbortSignal, options?: { force?: boolean }) => {
     try {
-      const payload = await fetchPersonalizedFeedCurated({
-        userId: user?._id,
-        force: Boolean(options?.force),
-      }).catch(() => ({
-        items: [] as CulturalItem[],
-      }));
+      const [oceanPayload, favoritesPayload] = await Promise.all([
+        fetchPersonalizedFeedCurated({
+          userId: user?._id,
+          force: Boolean(options?.force),
+          preferFavorites: false,
+        }).catch(() => ({ items: [] as CulturalItem[] })),
+        fetchPersonalizedFeedCurated({
+          userId: user?._id,
+          force: Boolean(options?.force),
+          preferFavorites: true,
+        }).catch(() => ({ items: [] as CulturalItem[] })),
+      ]);
       if (signal?.aborted) return;
-      const list = payload.items || [];
+      const list = oceanPayload.items || [];
+      const favoritesList = Array.isArray(favoritesPayload.items) ? favoritesPayload.items : [];
+      setFavoritesRecommendations(favoritesList.slice(0, 15));
       if (list.length > 0) {
         setItems(list.slice(0, 200));
         return;
@@ -143,9 +155,12 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
       setItems([]);
     } catch (e) {
       console.warn('Feed personalizado no disponible', e);
-      if (!signal?.aborted) setItems([]);
+      if (!signal?.aborted) {
+        setItems([]);
+        setFavoritesRecommendations([]);
+      }
     }
-  }, [runGlobalDefault, user?._id]);
+  }, [user?._id]);
 
   const refreshFeed = useCallback(async () => {
     setShowSearchScreen(false);
@@ -172,6 +187,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     } catch (error) {
       console.warn('No se pudo refrescar el feed personalizado', error);
       setItems([]);
+      setFavoritesRecommendations([]);
     } finally {
       setRefreshingFeed(false);
       setLoading(false);
@@ -222,6 +238,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   useFocusEffect(
     useCallback(() => {
       loadNotInterestedIds();
+      return undefined;
     }, [loadNotInterestedIds])
   );
 
@@ -324,13 +341,17 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   );
 
   const principalRecommendations = useMemo(() => {
+    const firstByCategory = new Map<CulturalCategory, CulturalItem>();
+    for (const item of filteredItems) {
+      if (!firstByCategory.has(item.category)) {
+        firstByCategory.set(item.category, item);
+      }
+    }
     const selected: CulturalItem[] = [];
     const selectedIds = new Set<string>();
 
     for (const category of filterCategories) {
-      const pick = filteredItems.find(
-        (item) => item.category === category.key && !selectedIds.has(item.id)
-      );
+      const pick = firstByCategory.get(category.key);
       if (!pick) continue;
       selected.push(pick);
       selectedIds.add(pick.id);
@@ -348,6 +369,10 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
 
     return selected;
   }, [filteredItems, filterCategories]);
+  const favoritesRecommendationLine = useMemo(() => {
+    if (!favoritesRecommendations.length) return [];
+    return favoritesRecommendations.filter((item) => !notInterestedIds.has(item.id)).slice(0, 15);
+  }, [favoritesRecommendations, notInterestedIds]);
 
   const recommendationsByCategory = useMemo(() => {
     const grouped = new Map<CulturalCategory, CulturalItem[]>();
@@ -366,10 +391,6 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
       }))
       .filter((section) => section.data.length > 0);
   }, [filteredItems, filterCategories]);
-
-  const trendingRecommendations = useMemo(() => {
-    return [...filteredItems].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 10);
-  }, [filteredItems]);
 
   const availableGenres = useMemo(() => {
     const unique = new Set<string>();
@@ -567,8 +588,8 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     filteredItems,
     filteredSearchItems,
     principalRecommendations,
+    favoritesRecommendationLine,
     recommendationsByCategory,
-    trendingRecommendations,
     availableGenres,
     availableAuthors,
     feedCardWidth,

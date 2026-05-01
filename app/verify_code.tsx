@@ -6,7 +6,7 @@ import { ArrowLeft, MailCheck, RefreshCw } from "lucide-react-native";
 
 import { BackgroundLayout } from "../src/components/ui/BackgroundLayout";
 import { Button } from "../src/components/ui/button";
-import { verifyEmailCode, resendVerificationCode } from "../src/services/DL_api/api";
+import { verifyEmailCode, resendVerificationCode } from "../src/api/client";
 
 export default function EmailValidationScreen() {
   const router = useRouter();

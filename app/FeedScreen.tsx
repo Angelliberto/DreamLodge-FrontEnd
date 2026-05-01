@@ -51,6 +51,7 @@ export default function UnifiedFeedScreen() {
     filteredItems,
     filteredSearchItems,
     principalRecommendations,
+    favoritesRecommendationLine,
     recommendationsByCategory,
     availableGenres,
     availableAuthors,
@@ -158,7 +159,7 @@ export default function UnifiedFeedScreen() {
 
               {principalRecommendations.length > 0 ? (
                 <RecommendationSection
-                  title="Recomendacion principal"
+                  title="Recomendación principal"
                   items={principalRecommendations}
                   itemWidth={recommendationCardWidth}
                   itemHeight={recommendationPosterHeight}
@@ -171,6 +172,24 @@ export default function UnifiedFeedScreen() {
                   onPressItem={handlePress}
                   onToggleFavorite={handleToggleFavorite}
                   onTogglePending={handleTogglePending}
+                />
+              ) : null}
+              {favoritesRecommendationLine.length > 0 ? (
+                <RecommendationSection
+                  title="Recomendados por tus favoritos"
+                  items={favoritesRecommendationLine}
+                  itemWidth={recommendationCardWidth}
+                  itemHeight={recommendationPosterHeight}
+                  getCategoryIcon={getCategoryIcon}
+                  getCategoryColor={getCategoryColor}
+                  getCinemaTypeLabel={getCinemaTypeLabel}
+                  favoriteIds={favoriteIds}
+                  pendingIds={pendingIds}
+                  updatingItems={updatingItems}
+                  onPressItem={handlePress}
+                  onToggleFavorite={handleToggleFavorite}
+                  onTogglePending={handleTogglePending}
+                  showCount
                 />
               ) : null}
 

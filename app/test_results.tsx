@@ -1,10 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Brain, Check, Star, User as UserIcon } from 'lucide-react-native';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   ScrollView,
   StatusBar,
   Text,
@@ -15,17 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   ArtisticDescriptionPayload,
-  fetchPersonalizedFeedCurated,
   generateArtisticDescription,
   getUserTestResults,
   invalidateArtisticDescriptionCache,
 } from '@/api/client';
-import type { CulturalItem } from '@/types/CulturalItem';
 import { BottomNavigation } from '../src/components/BottomNavigation';
 import { NavigationBar } from '../src/components/NavigationBar';
 import { DimensionSelectorTabs } from '../src/components/test-results/DimensionSelectorTabs';
 import { GenreRecommendationsBlock } from '../src/components/test-results/GenreRecommendationsBlock';
-import { RecommendedWorksBlock } from '../src/components/test-results/RecommendedWorksBlock';
 import { SelectedDimensionDetailsBlock } from '../src/components/test-results/SelectedDimensionDetailsBlock';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import {
@@ -123,67 +119,7 @@ export default function TestResultsScreen() {
   const [results, setResults] = useState<any>({});
   const [artisticProfile, setArtisticProfile] = useState<ArtisticDescriptionPayload | null>(null);
   const [generatingDescription, setGeneratingDescription] = useState(false);
-  /** Obras de suggestedWorks (IA), mismas que al inicio del feed Explorar. */
-  const [profileWorkItems, setProfileWorkItems] = useState<CulturalItem[]>([]);
-  const [profileWorksLoading, setProfileWorksLoading] = useState(false);
   const artisticGenInFlight = useRef(false);
-
-  const suggestedWorksKey = useMemo(() => {
-    const w = artisticProfile?.suggestedWorks;
-    if (!w?.length) return '';
-    return w.map((x) => `${x.category}:${x.title}:${x.creator || ''}`).join('|');
-  }, [artisticProfile?.suggestedWorks]);
-
-  const { recItemWidth, recGap } = useMemo(() => {
-    const screenWidth = Dimensions.get('window').width;
-    // Container real en esta sección:
-    // - wrapper externo: mx-4 (16 * 2)
-    // - card del perfil artístico: p-6 (24 * 2)
-    const horizontalPadding = (16 * 2) + (24 * 2);
-    const gap = 8;
-    const columns = 3;
-    const itemWidth = (screenWidth - horizontalPadding - gap * (columns - 1)) / columns;
-    return { recItemWidth: itemWidth, recGap: gap };
-  }, []);
-
-  useEffect(() => {
-    if (resultsView !== 'artistic' || !suggestedWorksKey || !user?._id) {
-      setProfileWorkItems([]);
-      setProfileWorksLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setProfileWorksLoading(true);
-    fetchPersonalizedFeedCurated({ anchorsOnly: true })
-      .then((payload) => {
-        if (!cancelled) setProfileWorkItems(payload.items || []);
-      })
-      .catch(() => {
-        if (!cancelled) setProfileWorkItems([]);
-      })
-      .finally(() => {
-        if (!cancelled) setProfileWorksLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [resultsView, suggestedWorksKey, user?._id]);
-
-  const handleRecommendationPress = useCallback(
-    (item: CulturalItem) => {
-      const itemData = JSON.stringify(item);
-      router.push({
-        pathname: '/artwork-details',
-        params: {
-          id: item.id,
-          source: item.source,
-          originalId: String(item.originalId),
-          itemData,
-        },
-      });
-    },
-    [router]
-  );
 
   /** force: tras rehacer el test — borra caché local y pide al servidor regenerar descripción y obras sugeridas */
   const generateArtisticDescriptionForUser = useCallback(async (userId: string, force = false) => {
@@ -408,14 +344,6 @@ export default function TestResultsScreen() {
                   ) : null}
                   <Text className="mb-4 leading-6 text-slate-300">{artisticProfile.description}</Text>
                   <GenreRecommendationsBlock artisticProfile={artisticProfile} />
-                  <RecommendedWorksBlock
-                    profileWorksLoading={profileWorksLoading}
-                    suggestedWorksKey={suggestedWorksKey}
-                    profileWorkItems={profileWorkItems}
-                    recItemWidth={recItemWidth}
-                    recGap={recGap}
-                    handleRecommendationPress={handleRecommendationPress}
-                  />
                 </>
               ) : (
                 <Text className="leading-6 text-slate-400">

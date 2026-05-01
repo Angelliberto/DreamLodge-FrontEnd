@@ -1,6 +1,19 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Clock, ExternalLink, EyeOff, Heart, Music, Pause, Play } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  BookOpen,
+  Clock,
+  ExternalLink,
+  EyeOff,
+  Film,
+  Gamepad2,
+  Heart,
+  Music,
+  Palette,
+  Pause,
+  Play,
+} from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,11 +27,13 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BottomNavigation } from '../src/components/BottomNavigation';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import { useAuth } from '../src/contexts/AuthContext';
 import { addToFavorites, addToPending, getArtworkById, getFavorites, getPending, getSimilarArtworks, removeFromFavorites, removeFromPending } from '@/api/client';
 import { getAlbumTracks } from '@/api/spotifyMusic';
 import { CulturalItem } from '@/types/CulturalItem';
+import type { CulturalCategory } from '@/types/CulturalItem';
 import { storage } from '@/utils/storage';
 
 function isSpotifyMusicArtwork(item: any): boolean {
@@ -42,6 +57,39 @@ function toArtworkPayload(item: any): CulturalItem {
 }
 
 const NOT_INTERESTED_STORAGE_KEY = 'feed.notInterestedIds';
+const SIMILAR_CATEGORY_TABS: { key: CulturalCategory; label: string; icon: any }[] = [
+  { key: 'cine', label: 'Cine/Series', icon: Film },
+  { key: 'musica', label: 'Música', icon: Music },
+  { key: 'arte-visual', label: 'Arte Visual', icon: Palette },
+  { key: 'literatura', label: 'Literatura', icon: BookOpen },
+  { key: 'videojuegos', label: 'Videojuegos', icon: Gamepad2 },
+];
+
+const VALID_CATEGORIES = new Set<CulturalCategory>(
+  SIMILAR_CATEGORY_TABS.map((tab) => tab.key)
+);
+
+function getCategoryColor(category: CulturalCategory): string {
+  switch (category) {
+    case 'cine':
+      return '#3b82f6';
+    case 'videojuegos':
+      return '#a855f7';
+    case 'literatura':
+      return '#facc15';
+    case 'musica':
+      return '#22c55e';
+    case 'arte-visual':
+      return '#f472b6';
+    default:
+      return '#94a3b8';
+  }
+}
+
+function normalizeCategory(value: string | undefined | null): CulturalCategory {
+  const cat = String(value || '').trim().toLowerCase() as CulturalCategory;
+  return VALID_CATEGORIES.has(cat) ? cat : 'cine';
+}
 
 export default function ArtworkDetailsScreen() {
   const router = useRouter();
@@ -62,7 +110,16 @@ export default function ArtworkDetailsScreen() {
   const [loadingTracks, setLoadingTracks] = useState(false);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
   const [activePreviewUrl, setActivePreviewUrl] = useState<string | null>(null);
-  const [similarItems, setSimilarItems] = useState<CulturalItem[]>([]);
+  const [similarItemsByCategory, setSimilarItemsByCategory] = useState<
+    Record<CulturalCategory, CulturalItem[]>
+  >({
+    cine: [],
+    musica: [],
+    'arte-visual': [],
+    literatura: [],
+    videojuegos: [],
+  });
+  const [activeSimilarCategory, setActiveSimilarCategory] = useState<CulturalCategory>('cine');
   const [loadingSimilar, setLoadingSimilar] = useState(false);
   // expo-audio: single player for current preview URL (no keep-awake / expo-av)
   const player = useAudioPlayer(activePreviewUrl ?? null, { downloadFirst: true });
@@ -321,25 +378,61 @@ export default function ArtworkDetailsScreen() {
     let cancelled = false;
     const loadSimilar = async () => {
       if (!similarSeed || !artworkPayload) {
-        if (!cancelled) setSimilarItems([]);
+        if (!cancelled) {
+          setSimilarItemsByCategory({
+            cine: [],
+            musica: [],
+            'arte-visual': [],
+            literatura: [],
+            videojuegos: [],
+          });
+        }
         return;
       }
+      const defaultCategory = normalizeCategory(artworkPayload.category);
+      setActiveSimilarCategory(defaultCategory);
       setLoadingSimilar(true);
       try {
-        const items = await getSimilarArtworks(
-          {
-            id: artworkPayload.id,
-            title: artworkPayload.title,
-            category: artworkPayload.category,
-            creator: artworkPayload.creator,
-            description: artworkPayload.description,
-            metadata: artworkPayload.metadata || {},
-          },
-          { limit: 3 }
+        const baseArtwork = {
+          id: artworkPayload.id,
+          title: artworkPayload.title,
+          category: artworkPayload.category,
+          creator: artworkPayload.creator,
+          description: artworkPayload.description,
+          metadata: artworkPayload.metadata || {},
+        };
+        const byCategorySettled = await Promise.allSettled(
+          SIMILAR_CATEGORY_TABS.map(async (tab) => {
+            const items = await getSimilarArtworks(baseArtwork, {
+              limit: 3,
+              targetCategory: tab.key,
+              timeoutMs: 45000,
+            });
+            return [tab.key, items.slice(0, 3)] as const;
+          })
         );
-        if (!cancelled) setSimilarItems(items.slice(0, 3));
+        const byCategory = byCategorySettled
+          .filter((result): result is PromiseFulfilledResult<readonly [CulturalCategory, CulturalItem[]]> => result.status === 'fulfilled')
+          .map((result) => result.value);
+        if (!cancelled) {
+          setSimilarItemsByCategory({
+            cine: byCategory.find(([key]) => key === 'cine')?.[1] || [],
+            musica: byCategory.find(([key]) => key === 'musica')?.[1] || [],
+            'arte-visual': byCategory.find(([key]) => key === 'arte-visual')?.[1] || [],
+            literatura: byCategory.find(([key]) => key === 'literatura')?.[1] || [],
+            videojuegos: byCategory.find(([key]) => key === 'videojuegos')?.[1] || [],
+          });
+        }
       } catch {
-        if (!cancelled) setSimilarItems([]);
+        if (!cancelled) {
+          setSimilarItemsByCategory({
+            cine: [],
+            musica: [],
+            'arte-visual': [],
+            literatura: [],
+            videojuegos: [],
+          });
+        }
       } finally {
         if (!cancelled) setLoadingSimilar(false);
       }
@@ -349,6 +442,8 @@ export default function ArtworkDetailsScreen() {
       cancelled = true;
     };
   }, [similarSeed, artworkPayload]);
+
+  const activeSimilarItems = similarItemsByCategory[activeSimilarCategory] || [];
 
   const playPreview = useCallback((previewUrl: string, trackId: string) => {
     if (playingTrackId === trackId && activePreviewUrl) {
@@ -488,7 +583,7 @@ export default function ArtworkDetailsScreen() {
 
   const getCategoryName = (cat: string) => {
     switch(cat) {
-      case 'cine': return 'Cine';
+      case 'cine': return 'Cine/Series';
       case 'videojuegos': return 'Videojuegos';
       case 'literatura': return 'Literatura';
       case 'musica': return 'Música';
@@ -565,7 +660,7 @@ export default function ArtworkDetailsScreen() {
         <ScrollView 
           className="flex-1"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 120 }}
         >
           {/* Hero Image */}
           <View className="relative">
@@ -770,13 +865,48 @@ export default function ArtworkDetailsScreen() {
               <Text className="text-xl font-semibold text-white mb-3">
                 Obras similares para ti
               </Text>
+              <View className="mb-4 flex-row rounded-xl border border-slate-700/60 bg-slate-900/70 p-1">
+                {SIMILAR_CATEGORY_TABS.map((tab) => {
+                  const isActive = activeSimilarCategory === tab.key;
+                  const TabIcon = tab.icon;
+                  const tabColor = getCategoryColor(tab.key);
+                  return (
+                    <TouchableOpacity
+                      key={tab.key}
+                      onPress={() => setActiveSimilarCategory(tab.key)}
+                      className={`flex-1 items-center rounded-lg py-3 ${
+                        isActive ? 'border' : ''
+                      }`}
+                      style={
+                        isActive
+                          ? {
+                              borderColor: tabColor,
+                              backgroundColor: `${tabColor}33`,
+                            }
+                          : undefined
+                      }
+                    >
+                      <View
+                        className="items-center justify-center rounded-full"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          backgroundColor: isActive ? tabColor : '#334155',
+                        }}
+                      >
+                        <TabIcon size={15} color="#ffffff" />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
               {loadingSimilar ? (
                 <View className="py-4">
                   <ActivityIndicator size="small" color="#a855f7" />
                 </View>
-              ) : similarItems.length > 0 ? (
+              ) : activeSimilarItems.length > 0 ? (
                 <View className="flex-row gap-2">
-                  {similarItems.slice(0, 3).map((item) => (
+                  {activeSimilarItems.slice(0, 3).map((item) => (
                     <TouchableOpacity
                       key={item.id}
                       className="flex-1 bg-slate-800/60 border border-slate-700/50 rounded-xl overflow-hidden"
@@ -802,7 +932,7 @@ export default function ArtworkDetailsScreen() {
                 </View>
               ) : (
                 <Text className="text-slate-500 text-sm">
-                  No encontramos obras similares ahora mismo.
+                  No encontramos obras similares de {SIMILAR_CATEGORY_TABS.find((x) => x.key === activeSimilarCategory)?.label?.toLowerCase() || 'esta categoría'} ahora mismo.
                 </Text>
               )}
             </View>
@@ -926,6 +1056,7 @@ export default function ArtworkDetailsScreen() {
             )}
           </View>
         </ScrollView>
+        <BottomNavigation />
       </SafeAreaView>
     </BackgroundLayout>
   );

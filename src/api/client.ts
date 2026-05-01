@@ -44,6 +44,27 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
   return response.data;
 }
 
+export async function verifyEmailCode(
+  email: string,
+  code: string
+): Promise<{ message: string }> {
+  const response = await axios.post<{ message: string }>(
+    getBackendEndpoint('/users/verify-email'),
+    { email, code }
+  );
+  return response.data;
+}
+
+export async function resendVerificationCode(
+  email: string
+): Promise<{ message: string }> {
+  const response = await axios.post<{ message: string }>(
+    getBackendEndpoint('/users/resend-verification-code'),
+    { email }
+  );
+  return response.data;
+}
+
 export function invalidateArtisticDescriptionCache(userId: string): void {
   cache.delete(`artisticDescription:${userId}`);
 }
@@ -183,13 +204,17 @@ export async function getArtworkById(id: string): Promise<any> {
 
 export async function getSimilarArtworks(
   artwork: Partial<CulturalItem>,
-  options?: { limit?: number }
+  options?: { limit?: number; targetCategory?: CulturalItem['category']; timeoutMs?: number }
 ): Promise<CulturalItem[]> {
   if (!artwork?.title || !artwork?.category) return [];
   const response = await axios.post(
     getBackendEndpoint('/artworks/similar'),
-    { artwork, limit: options?.limit ?? 3 },
-    { timeout: 12000 }
+    {
+      artwork,
+      limit: options?.limit ?? 3,
+      targetCategory: options?.targetCategory,
+    },
+    { timeout: options?.timeoutMs ?? 12000 }
   );
   const items = response.data?.data?.items;
   return Array.isArray(items) ? items : [];
@@ -254,6 +279,18 @@ export async function getPending(): Promise<CulturalItem[]> {
   const cached = cache.get<CulturalItem[]>(cacheKey);
   if (cached) return cached;
   const response = await axios.get(getBackendEndpoint('/artworks/pending'));
+  const data = response.data?.data || [];
+  cache.set(cacheKey, data, 10 * 60 * 1000);
+  return data;
+}
+
+export async function getNotInterested(): Promise<CulturalItem[]> {
+  const token = await getAuthToken();
+  if (!token) throw new Error('Not authenticated');
+  const cacheKey = 'notInterested';
+  const cached = cache.get<CulturalItem[]>(cacheKey);
+  if (cached) return cached;
+  const response = await axios.get(getBackendEndpoint('/artworks/not-interested'));
   const data = response.data?.data || [];
   cache.set(cacheKey, data, 10 * 60 * 1000);
   return data;
@@ -366,6 +403,8 @@ export async function generateArtisticDescription(
 
 export type PersonalizedFeedCuratedPayload = {
   items: CulturalItem[];
+  oceanItems?: CulturalItem[];
+  recommendationMode?: 'ocean' | 'favorites';
   webSearchUsed?: boolean;
   reason?: string;
   cached?: boolean;
@@ -374,6 +413,7 @@ export type PersonalizedFeedCuratedPayload = {
 export async function fetchPersonalizedFeedCurated(options?: {
   force?: boolean;
   anchorsOnly?: boolean;
+  preferFavorites?: boolean;
   userId?: string;
 }): Promise<PersonalizedFeedCuratedPayload> {
   const token = await getAuthToken();
@@ -392,7 +432,7 @@ export async function fetchPersonalizedFeedCurated(options?: {
       // Ignore profile parse errors; fallback to anon cache scope.
     }
   }
-  const cacheKey = `personalizedFeed:${cacheUserId || 'anon'}:${options?.force ? 1 : 0}:${options?.anchorsOnly ? 1 : 0}`;
+  const cacheKey = `personalizedFeed:${cacheUserId || 'anon'}:${options?.force ? 1 : 0}:${options?.anchorsOnly ? 1 : 0}:${options?.preferFavorites ? 1 : 0}`;
   if (options?.force) {
     cache.delete(cacheKey);
   } else {
@@ -402,6 +442,7 @@ export async function fetchPersonalizedFeedCurated(options?: {
   const params: Record<string, string | number> = {};
   if (options?.force) params.force = 1;
   if (options?.anchorsOnly) params.anchorsOnly = 1;
+  if (options?.preferFavorites) params.preferFavorites = 1;
   const response = await axios.get<{
     message?: string;
     data: PersonalizedFeedCuratedPayload;

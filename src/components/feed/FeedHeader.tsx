@@ -8,7 +8,11 @@ type FeedHeaderProps = {
   refreshing?: boolean;
 };
 
-export function FeedHeader({ onPressSearch, onPressRefresh, refreshing = false }: FeedHeaderProps) {
+export function FeedHeader({
+  onPressSearch,
+  onPressRefresh,
+  refreshing = false,
+}: FeedHeaderProps) {
   return (
     <View className="px-4 pt-4 pb-2">
       <View className="flex-row items-center justify-between">

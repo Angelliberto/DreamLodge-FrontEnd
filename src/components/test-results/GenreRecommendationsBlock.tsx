@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { ARTISTIC_GENRE_KEYS, ArtisticDescriptionPayload } from '@/api/client';
 
 const GENRE_SECTION_LABELS: Record<(typeof ARTISTIC_GENRE_KEYS)[number], string> = {
-  cine: 'Cine y series',
+  cine: 'Cine/Series',
   musica: 'Música',
   literatura: 'Literatura',
   videojuegos: 'Videojuegos',

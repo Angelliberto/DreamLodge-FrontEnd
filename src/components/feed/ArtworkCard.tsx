@@ -96,18 +96,18 @@ export const ArtworkCard = React.memo(function ArtworkCard({
             </View>
           ) : null}
         </View>
-        <View className="px-2 pb-2 pt-2">
+        <View style={{ minHeight: 92 }} className="px-2 pb-2 pt-2 justify-between">
           <Text numberOfLines={2} className="text-[13px] font-semibold leading-[17px] text-white">
             {item.title}
           </Text>
           <Text numberOfLines={1} className="mt-1 text-[11px] leading-[14px] text-slate-400">
             {[item.creator, item.year].filter(Boolean).join(' · ') || ' '}
           </Text>
-          {item.metadata?.genres && item.metadata.genres.length > 0 ? (
-            <Text numberOfLines={1} className="mt-1 text-[10px] text-slate-500">
-              {item.metadata.genres.slice(0, 2).join(' · ')}
-            </Text>
-          ) : null}
+          <Text numberOfLines={1} className="mt-1 text-[10px] text-slate-500">
+            {item.metadata?.genres && item.metadata.genres.length > 0
+              ? item.metadata.genres.slice(0, 2).join(' · ')
+              : ' '}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
