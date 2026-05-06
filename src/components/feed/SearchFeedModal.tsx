@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
+  Platform,
   Text,
   TextInput,
   TouchableOpacity,
@@ -29,6 +30,8 @@ type SearchFeedModalProps = {
   hasActiveFilters: boolean;
   feedPosterHeight: number;
   renderItem: ({ item, index }: { item: CulturalItem; index: number }) => React.ReactElement;
+  /** Dispara re-render de celdas al cambiar favoritos / pendientes (FlatList no compara Maps en data). */
+  listExtraData?: unknown;
 };
 
 export function SearchFeedModal({
@@ -44,6 +47,7 @@ export function SearchFeedModal({
   hasActiveFilters,
   feedPosterHeight,
   renderItem,
+  listExtraData,
 }: SearchFeedModalProps) {
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -107,6 +111,7 @@ export function SearchFeedModal({
           ) : (
             <FlatList
               data={filteredSearchItems}
+              extraData={listExtraData}
               keyExtractor={(item) => item.id}
               renderItem={renderItem}
               getItemLayout={(_, index) => {
@@ -126,13 +131,12 @@ export function SearchFeedModal({
               }}
               contentContainerStyle={{ paddingBottom: 100, paddingTop: 4 }}
               showsVerticalScrollIndicator={false}
-              removeClippedSubviews={true}
+              removeClippedSubviews={Platform.OS === 'android'}
               maxToRenderPerBatch={8}
               updateCellsBatchingPeriod={80}
               initialNumToRender={10}
               windowSize={7}
-              legacyImplementation={false}
-              disableVirtualization={false}
+              style={{ flex: 1 }}
               ListEmptyComponent={
                 <View className="px-4 py-12 items-center">
                   <Text className="text-center text-slate-500 text-lg mb-2">Sin resultados</Text>

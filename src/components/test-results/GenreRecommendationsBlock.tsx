@@ -45,7 +45,7 @@ export function GenreRecommendationsBlock({ artisticProfile }: Props) {
     return (
       <View className="mb-5">
         <Text className="mb-2 text-sm text-slate-400">
-          Géneros y estilos (perfil anterior)
+          Géneros y estilos (análisis anterior)
         </Text>
         <Text className="text-slate-300">{artisticProfile.recommendations.join(', ')}.</Text>
       </View>

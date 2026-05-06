@@ -21,7 +21,7 @@ type RecommendationSectionProps = {
   showCount?: boolean;
 };
 
-export function RecommendationSection({
+export const RecommendationSection = React.memo(function RecommendationSection({
   title,
   items,
   itemWidth,
@@ -83,4 +83,4 @@ export function RecommendationSection({
       </ScrollView>
     </View>
   );
-}
+});

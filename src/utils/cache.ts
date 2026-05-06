@@ -156,5 +156,21 @@ class SimpleCache {
   }
 }
 
-// Instancia global del caché con límite de 150 entradas (aumentado para mejor rendimiento)
-export const cache = new SimpleCache(150);
+/** TTL recomendados (ms) — listas de usuario, feed, etc. */
+export const CACHE_TTL = {
+  /** Listas de obras del usuario (favoritos / pendientes / no interesa) */
+  userLists: 10 * 60 * 1000,
+  /** Resultados de test OCEAN */
+  testResults: 10 * 60 * 1000,
+  /** Descripción artística generada */
+  artisticDescription: 24 * 60 * 60 * 1000,
+  /** Feed personalizado curado (API) */
+  personalizedFeed: 10 * 60 * 1000,
+  /** Feed solo anclas (menos cambio) */
+  personalizedFeedAnchors: 30 * 60 * 1000,
+  /** Respuestas genéricas API cortas */
+  short: 5 * 60 * 1000,
+} as const;
+
+// Instancia global: más entradas + LRU para patrones tipo feed con muchas claves.
+export const cache = new SimpleCache(240);

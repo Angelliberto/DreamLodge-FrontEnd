@@ -320,8 +320,8 @@ export async function sendMessage(
 
   const conversationsForContext = await getConversations();
   const convForContext = conversationsForContext.find(c => c.id === conversationId);
-  const contextItemIds =
-    convForContext?.contextItems?.map((item) => item.id) ?? [];
+  const contextItemsForChat = convForContext?.contextItems ?? [];
+  const contextItemIds = contextItemsForChat.map((item) => item.id);
 
   await addMessage(conversationId, text, 'user', contextItemIds);
 
@@ -342,14 +342,14 @@ export async function sendMessage(
         message: text,
         conversationId,
         currentTitle,
-        contextItems: contextItemIds,
+        contextItems: contextItemsForChat,
       },
       {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        timeout: 90000, // 90 segundos para dar más tiempo
+        timeout: 70000,
         signal
       }
     );
@@ -357,7 +357,12 @@ export async function sendMessage(
     // Mantener estado connected
     setConnectionStatus('connected');
 
-    const aiResponseText = response.data?.data?.response || 'No pude generar una respuesta en este momento. ¿Quieres intentar de nuevo?';
+    const rawAiResponse = response.data?.data?.response;
+    const aiResponseText =
+      typeof rawAiResponse === 'string' ? rawAiResponse.trim() : '';
+    if (!aiResponseText) {
+      throw new Error('El agente IA devolvió una respuesta vacía.');
+    }
     const suggestedTitle = response.data?.data?.suggestedTitle;
 
     const aiMessage = await addMessage(conversationId, aiResponseText, 'ai');
@@ -376,7 +381,11 @@ export async function sendMessage(
 
     return aiMessage;
   } catch (error: any) {
-    const isAborted = error.code === 'ERR_CANCELED' || error.name === 'AbortError';
+    const isAborted =
+      error.code === 'ERR_CANCELED' ||
+      error.name === 'AbortError' ||
+      error.name === 'CanceledError' ||
+      axios.isCancel?.(error);
 
     if (isAborted) {
       console.log('📤 Envío cancelado (usuario salió o cambió de conversación)');
@@ -403,7 +412,13 @@ export async function sendMessage(
       errorMessage = 'La solicitud tardó demasiado. Por favor, intenta de nuevo.';
     } else if (error.response?.data) {
       const msg = error.response.data?.message;
-      errorMessage = typeof msg === 'string' ? msg : error.response.data?.details || `Error del servidor: ${error.response.status}`;
+      if (typeof msg === 'string') {
+        errorMessage = msg;
+      } else if (msg && typeof msg === 'object' && typeof msg.message === 'string') {
+        errorMessage = msg.message;
+      } else {
+        errorMessage = error.response.data?.details || `Error del servidor: ${error.response.status}`;
+      }
     } else if (error.request) {
       errorMessage = 'No se pudo conectar con el servidor. Verifica tu conexión.';
     } else {

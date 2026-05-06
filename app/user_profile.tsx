@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Brain, EyeOff, Film, Heart, Sparkles } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -23,6 +23,7 @@ import {
   getNotInterested,
   getPending,
   getUserTestResults,
+  invalidateUserArtworkListCaches,
 } from '@/api/client';
 import { CulturalItem } from '@/types/CulturalItem';
 
@@ -117,7 +118,7 @@ export default function UserProfileScreen() {
               typeof latestResult?.description === 'string' ? latestResult.description : '';
             setProfile(
               profileName || profileDescription
-                ? { profile: profileName || 'Perfil artístico', description: profileDescription || '' }
+                ? { profile: profileName || 'Análisis de personalidad', description: profileDescription || '' }
                 : null
             );
 
@@ -187,6 +188,35 @@ export default function UserProfileScreen() {
       loadingArtworksRef.current = false;
     };
   }, [user?._id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?._id) return undefined;
+      let cancelled = false;
+      const refresh = async () => {
+        invalidateUserArtworkListCaches();
+        try {
+          const [favs, pend, notInt] = await Promise.all([
+            getFavorites(),
+            getPending(),
+            getNotInterested(),
+          ]);
+          if (!cancelled) {
+            setFavorites(favs);
+            setPending(pend);
+            setNotInterested(notInt);
+            initialDataLoadedRef.current = true;
+          }
+        } catch (error) {
+          if (!cancelled) console.error('Error refreshing profile lists on focus:', error);
+        }
+      };
+      refresh();
+      return () => {
+        cancelled = true;
+      };
+    }, [user?._id])
+  );
 
   // Silently refresh data when tab changes (uses cache, so it's instant and smooth)
   useEffect(() => {
@@ -433,10 +463,10 @@ export default function UserProfileScreen() {
             </View>
           </View>
 
-          {/* Artistic Profile Section */}
+          {/* AI Analysis Section */}
           {profile && testResults && (
             <View className="px-4 pt-2 pb-4">
-              <Text className="text-white font-bold text-lg mb-3">Tu Perfil Artístico</Text>
+              <Text className="text-white font-bold text-lg mb-3">Tu análisis de personalidad</Text>
               
               <View className="flex-row gap-2 mb-3">
                 {/* Style Card */}

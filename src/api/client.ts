@@ -3,7 +3,8 @@ import { Platform } from 'react-native';
 import { getBackendEndpoint } from '../config/api';
 import type { AuthResponse, LoginRequest, RegisterRequest } from '../types';
 import type { CulturalItem } from '../types/CulturalItem';
-import { cache } from '../utils/cache';
+import { CACHE_TTL, cache } from '../utils/cache';
+import { readCachedStaleWhileRevalidate } from '../utils/staleWhileRevalidate';
 import { storage } from '../utils/storage';
 
 const getAuthToken = async (): Promise<string | null> => storage.getItem('userToken');
@@ -73,6 +74,13 @@ export function invalidatePersonalizedFeedCache(): void {
   cache.deleteByPattern(/^personalizedFeed:/);
 }
 
+/** Limpia caché en memoria de listas de usuario para forzar datos recientes al volver a perfil/feed. */
+export function invalidateUserArtworkListCaches(): void {
+  cache.delete('favorites');
+  cache.delete('pending');
+  cache.delete('notInterested');
+}
+
 export async function saveTestResults(userId: string, results: any): Promise<void> {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
@@ -138,7 +146,7 @@ export async function getUserTestResults(userId: string): Promise<any | null> {
     const response = await axios.get(getBackendEndpoint(`/ocean/user/${userId}`));
     const data = response.data?.data || response.data;
     if (data) {
-      cache.set(cacheKey, data, 10 * 60 * 1000);
+      cache.set(cacheKey, data, CACHE_TTL.testResults);
     }
     return data;
   } catch (error: any) {
@@ -244,12 +252,10 @@ export async function getFavorites(): Promise<CulturalItem[]> {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
   const cacheKey = 'favorites';
-  const cached = cache.get<CulturalItem[]>(cacheKey);
-  if (cached) return cached;
-  const response = await axios.get(getBackendEndpoint('/artworks/favorites'));
-  const data = response.data?.data || [];
-  cache.set(cacheKey, data, 10 * 60 * 1000);
-  return data;
+  return readCachedStaleWhileRevalidate<CulturalItem[]>(cacheKey, CACHE_TTL.userLists, async () => {
+    const response = await axios.get(getBackendEndpoint('/artworks/favorites'));
+    return response.data?.data || [];
+  });
 }
 
 export async function addToPending(
@@ -276,24 +282,44 @@ export async function getPending(): Promise<CulturalItem[]> {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
   const cacheKey = 'pending';
-  const cached = cache.get<CulturalItem[]>(cacheKey);
-  if (cached) return cached;
-  const response = await axios.get(getBackendEndpoint('/artworks/pending'));
-  const data = response.data?.data || [];
-  cache.set(cacheKey, data, 10 * 60 * 1000);
-  return data;
+  return readCachedStaleWhileRevalidate<CulturalItem[]>(cacheKey, CACHE_TTL.userLists, async () => {
+    const response = await axios.get(getBackendEndpoint('/artworks/pending'));
+    return response.data?.data || [];
+  });
 }
 
 export async function getNotInterested(): Promise<CulturalItem[]> {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
   const cacheKey = 'notInterested';
-  const cached = cache.get<CulturalItem[]>(cacheKey);
-  if (cached) return cached;
-  const response = await axios.get(getBackendEndpoint('/artworks/not-interested'));
-  const data = response.data?.data || [];
-  cache.set(cacheKey, data, 10 * 60 * 1000);
-  return data;
+  return readCachedStaleWhileRevalidate<CulturalItem[]>(cacheKey, CACHE_TTL.userLists, async () => {
+    const response = await axios.get(getBackendEndpoint('/artworks/not-interested'));
+    return response.data?.data || [];
+  });
+}
+
+export async function addToNotInterested(
+  artwork: CulturalItem
+): Promise<{ message: string; data: { artworkId: string } }> {
+  const token = await getAuthToken();
+  if (!token) throw new Error('Not authenticated');
+  const response = await axios.post(getBackendEndpoint('/artworks/not-interested'), { artwork });
+  cache.delete('notInterested');
+  invalidatePersonalizedFeedCache();
+  return response.data;
+}
+
+export async function removeFromNotInterested(
+  artworkMongoId: string
+): Promise<{ message: string; data: { notInterestedArtworks?: unknown[] } }> {
+  const token = await getAuthToken();
+  if (!token) throw new Error('Not authenticated');
+  const response = await axios.delete(
+    getBackendEndpoint(`/artworks/not-interested/${encodeURIComponent(artworkMongoId)}`)
+  );
+  cache.delete('notInterested');
+  invalidatePersonalizedFeedCache();
+  return response.data;
 }
 
 export type ArtisticSuggestedWork = {
@@ -369,7 +395,7 @@ function normalizeArtisticPayload(raw: Record<string, unknown> | null | undefine
     description:
       typeof raw?.description === 'string'
         ? raw.description
-        : 'Tu perfil artístico está siendo analizado...',
+        : 'Tu análisis de personalidad se está generando...',
     recommendations: rec.filter((x): x is string => typeof x === 'string'),
     genreRecommendations: normalizeGenreRecommendations(raw?.genreRecommendations),
     suggestedWorks: suggestedWorks.length > 0 ? suggestedWorks : undefined,
@@ -397,7 +423,7 @@ export async function generateArtisticDescription(
     options?.force ? { forceRegenerate: true } : {}
   );
   const data = normalizeArtisticPayload((response.data?.data || {}) as Record<string, unknown>);
-  cache.set(cacheKey, data, 24 * 60 * 60 * 1000);
+  cache.set(cacheKey, data, CACHE_TTL.artisticDescription);
   return data;
 }
 
@@ -408,13 +434,21 @@ export type PersonalizedFeedCuratedPayload = {
   webSearchUsed?: boolean;
   reason?: string;
   cached?: boolean;
+  /** Respuesta rápida mientras el servidor termina la curación completa en segundo plano */
+  partial?: boolean;
+  refreshing?: boolean;
+  source?: string;
 };
+
+const PARTIAL_FEED_CACHE_MS = 4_000;
 
 export async function fetchPersonalizedFeedCurated(options?: {
   force?: boolean;
   anchorsOnly?: boolean;
   preferFavorites?: boolean;
   userId?: string;
+  /** Ignora caché en memoria (útil para reintentos tras respuesta partial del servidor). */
+  noCache?: boolean;
 }): Promise<PersonalizedFeedCuratedPayload> {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
@@ -433,7 +467,7 @@ export async function fetchPersonalizedFeedCurated(options?: {
     }
   }
   const cacheKey = `personalizedFeed:${cacheUserId || 'anon'}:${options?.force ? 1 : 0}:${options?.anchorsOnly ? 1 : 0}:${options?.preferFavorites ? 1 : 0}`;
-  if (options?.force) {
+  if (options?.force || options?.noCache) {
     cache.delete(cacheKey);
   } else {
     const cached = cache.get<PersonalizedFeedCuratedPayload>(cacheKey);
@@ -454,6 +488,8 @@ export async function fetchPersonalizedFeedCurated(options?: {
   if (!Array.isArray(payload.items)) {
     return { ...payload, items: [] };
   }
-  cache.set(cacheKey, payload, options?.anchorsOnly ? 30 * 60 * 1000 : 10 * 60 * 1000);
+  const baseTtl = options?.anchorsOnly ? CACHE_TTL.personalizedFeedAnchors : CACHE_TTL.personalizedFeed;
+  const ttl = payload.partial ? PARTIAL_FEED_CACHE_MS : baseTtl;
+  cache.set(cacheKey, payload, ttl);
   return payload;
 }

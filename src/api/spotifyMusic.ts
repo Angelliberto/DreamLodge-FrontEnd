@@ -106,27 +106,6 @@ export const getAlbumGenres = async (
       }
     }
 
-    if (albumData) {
-      if (albumData.album_type) {
-        const albumTypeMap: Record<string, string> = {
-          album: 'Album',
-          single: 'Single',
-          compilation: 'Compilation',
-        };
-        const albumTypeTag = albumTypeMap[albumData.album_type] || albumData.album_type;
-        if (albumTypeTag) tags.push(albumTypeTag);
-      }
-      if (albumData.popularity && albumData.popularity > 70) {
-        tags.push('Popular');
-      }
-      if (albumData.release_date) {
-        const releaseYear = new Date(albumData.release_date).getFullYear();
-        if (new Date().getFullYear() - releaseYear <= 2) {
-          tags.push('Recent');
-        }
-      }
-    }
-
     if (albumData?.label) platforms.push(albumData.label);
 
     albumData?.copyrights?.forEach((copyright: any) => {

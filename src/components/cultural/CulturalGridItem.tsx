@@ -69,8 +69,9 @@ export const CulturalGridItem = React.memo(
             source={{ uri: item.imageUrl }}
             style={{ width: '100%', height: 120 }}
             resizeMode="cover"
-            className="bg-slate-700"
-            placeholderColor="#1e293b"
+            placeholderColor="#334155"
+            recyclingKey={item.id}
+            priority="low"
           />
           <View className="p-2">
             <View className="mb-1 flex-row items-center gap-1">
@@ -97,6 +98,7 @@ export const CulturalGridItem = React.memo(
   },
   (prev, next) =>
     prev.item.id === next.item.id &&
+    prev.item.imageUrl === next.item.imageUrl &&
     prev.itemWidth === next.itemWidth &&
     prev.index === next.index
 );

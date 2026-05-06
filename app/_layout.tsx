@@ -69,19 +69,20 @@ const Layout: React.FC = () => {
           headerShown: false,
           // Dark background by default to avoid white flashes
           contentStyle: { backgroundColor: '#020617' },
+          // Pantallas inactivas dejan de re-renderizar (react-native-screens; ahorro tipo apps de feed).
+          freezeOnBlur: true,
         }}
       />
     </AuthProvider>
   );
 
+  // Native: KeyboardProvider sin statusBarTranslucent (edge-to-edge los ignora y avisa en consola).
   return (
     <SafeAreaProvider>
       {Platform.OS === "web" ? (
         stack
       ) : (
-        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
-          {stack}
-        </KeyboardProvider>
+        <KeyboardProvider>{stack}</KeyboardProvider>
       )}
     </SafeAreaProvider>
   );

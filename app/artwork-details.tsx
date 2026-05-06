@@ -1,10 +1,12 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
   BookOpen,
   Clock,
   ExternalLink,
+  Eye,
   EyeOff,
   Film,
   Gamepad2,
@@ -17,9 +19,8 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
-  Image,
   Linking,
+  Platform,
   ScrollView,
   StatusBar,
   Text,
@@ -29,8 +30,21 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomNavigation } from '../src/components/BottomNavigation';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
+import { OptimizedImage } from '../src/components/ui/OptimizedImage';
 import { useAuth } from '../src/contexts/AuthContext';
-import { addToFavorites, addToPending, getArtworkById, getFavorites, getPending, getSimilarArtworks, removeFromFavorites, removeFromPending } from '@/api/client';
+import {
+  addToFavorites,
+  addToNotInterested,
+  getNotInterested,
+  removeFromNotInterested,
+  addToPending,
+  getArtworkById,
+  getFavorites,
+  getPending,
+  getSimilarArtworks,
+  removeFromFavorites,
+  removeFromPending,
+} from '@/api/client';
 import { getAlbumTracks } from '@/api/spotifyMusic';
 import { CulturalItem } from '@/types/CulturalItem';
 import type { CulturalCategory } from '@/types/CulturalItem';
@@ -56,7 +70,28 @@ function toArtworkPayload(item: any): CulturalItem {
   };
 }
 
-const NOT_INTERESTED_STORAGE_KEY = 'feed.notInterestedIds';
+const LEGACY_NOT_INTERESTED_STORAGE_KEY = 'feed.notInterestedIds';
+
+function mergeNotInterestedIdsFromStorage(mergeInto: Set<string>, raw: string | null) {
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.filter((x) => typeof x === 'string').forEach((x) => mergeInto.add(x));
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+async function readMergedNotInterestedIdSet(userId: string | undefined): Promise<Set<string>> {
+  const storageKey = `feed.notInterestedIds:${userId || 'anon'}`;
+  const merged = new Set<string>();
+  mergeNotInterestedIdsFromStorage(merged, await storage.getItem(storageKey));
+  mergeNotInterestedIdsFromStorage(merged, await storage.getItem(LEGACY_NOT_INTERESTED_STORAGE_KEY));
+  return merged;
+}
+
 const SIMILAR_CATEGORY_TABS: { key: CulturalCategory; label: string; icon: any }[] = [
   { key: 'cine', label: 'Cine/Series', icon: Film },
   { key: 'musica', label: 'Música', icon: Music },
@@ -104,8 +139,25 @@ export default function ArtworkDetailsScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [artworkMongoId, setArtworkMongoId] = useState<string | null>(null);
-  const [updatingFavorite, setUpdatingFavorite] = useState(false);
-  const [updatingPending, setUpdatingPending] = useState(false);
+  /** Cola serializada favoritos/pendiente: UI optimista al instante, servidor en orden (evita carreras). */
+  const artworkListMutationsRef = useRef(Promise.resolve());
+  const artworkMongoIdRef = useRef<string | null>(null);
+  const isFavoriteRef = useRef(false);
+  const isPendingRef = useRef(false);
+  /** Se incrementa al mutar favoritos/pendiente para ignorar getFavorites/getPending obsoletos. */
+  const listInteractionEpochRef = useRef(0);
+
+  useEffect(() => {
+    artworkMongoIdRef.current = artworkMongoId;
+  }, [artworkMongoId]);
+  useEffect(() => {
+    isFavoriteRef.current = isFavorite;
+  }, [isFavorite]);
+  useEffect(() => {
+    isPendingRef.current = isPending;
+  }, [isPending]);
+  const [isNotInterested, setIsNotInterested] = useState(false);
+  const [notInterestedMongoId, setNotInterestedMongoId] = useState<string | null>(null);
   const [tracks, setTracks] = useState<any[]>([]);
   const [loadingTracks, setLoadingTracks] = useState(false);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
@@ -127,7 +179,6 @@ export default function ArtworkDetailsScreen() {
   const hasTriggeredPlayRef = useRef(false);
   // States for categories (music has its own system, other artworks use metadata)
   const [musicGenres, setMusicGenres] = useState<string[]>([]);
-  const [musicTags, setMusicTags] = useState<string[]>([]);
   const [musicPlatforms, setMusicPlatforms] = useState<string[]>([]);
   const [musicOther, setMusicOther] = useState<string[]>([]);
   const artworkPayload = useMemo<CulturalItem | null>(
@@ -135,9 +186,10 @@ export default function ArtworkDetailsScreen() {
     [artwork]
   );
 
-  // Configure expo-audio mode (no keep-awake; avoids expo-av deprecation)
+  // Web / algunos entornos no soportan keep-awake tras setAudioModeAsync → evitar promesa rechazada sin catch.
   useEffect(() => {
-    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    if (Platform.OS === 'web') return;
+    void setAudioModeAsync({ playsInSilentMode: true }).catch(() => undefined);
   }, []);
 
   const loadTracks = useCallback(async (albumId: string, isMountedRef?: { current: boolean }) => {
@@ -152,16 +204,11 @@ export default function ArtworkDetailsScreen() {
 
       // Save separated categories
       setMusicGenres(result.genres || []);
-      setMusicTags(result.tags || []);
       setMusicPlatforms(result.platforms || []);
       setMusicOther(result.other || []);
 
       // Update artwork genres for FeedScreen (combine all)
-      const allGenres = [
-        ...(result.genres || []),
-        ...(result.tags || []),
-        ...(result.platforms || [])
-      ];
+      const allGenres = [...(result.genres || []), ...(result.platforms || [])];
 
       if (allGenres.length > 0) {
         setArtwork((prev: any) => ({
@@ -307,10 +354,13 @@ export default function ArtworkDetailsScreen() {
   // Check if artwork is in favorites and pending when loaded
   // Uses aggressive cache - only calls API if there's no valid cache
   useEffect(() => {
+    listInteractionEpochRef.current = 0;
     let isMounted = true;
-    
+
     const checkArtworkStatus = async () => {
       if (!artwork || !user?._id) return;
+
+      const epochAtStart = listInteractionEpochRef.current;
 
       try {
         // Get favorites and pending - getFavorites/getPending already use cache
@@ -321,27 +371,23 @@ export default function ArtworkDetailsScreen() {
         ]);
 
         // Only update if component is still mounted
-        if (!isMounted) return;
+        if (!isMounted || epochAtStart !== listInteractionEpochRef.current) return;
 
-        // Check if artwork is in favorites (compare by unique id)
         const favItem: CulturalItem | undefined = favorites.find((fav) => fav.id === artwork.id);
         const inFavorites = !!favItem;
-        setIsFavorite(inFavorites);
-
-        // If in favorites, get its MongoDB ID
-        if (inFavorites && favItem?._id) {
-          setArtworkMongoId(favItem._id.toString());
-        }
-
-        // Check if artwork is in pending
         const pendItem: CulturalItem | undefined = pending.find((pend) => pend.id === artwork.id);
         const inPending = !!pendItem;
-        setIsPending(inPending);
 
-        // If in pending and we don't have MongoDB ID, get it
-        if (inPending && pendItem?._id && !artworkMongoId) {
-          setArtworkMongoId(pendItem._id.toString());
-        }
+        setIsFavorite(inFavorites);
+        isFavoriteRef.current = inFavorites;
+        setIsPending(inPending);
+        isPendingRef.current = inPending;
+
+        let nextMongoId: string | null = null;
+        if (inFavorites && favItem?._id) nextMongoId = favItem._id.toString();
+        else if (inPending && pendItem?._id) nextMongoId = pendItem._id.toString();
+        setArtworkMongoId(nextMongoId);
+        artworkMongoIdRef.current = nextMongoId;
       } catch (error) {
         if (isMounted) {
           console.error('Error checking artwork status:', error);
@@ -360,6 +406,39 @@ export default function ArtworkDetailsScreen() {
     };
     // Only execute when artwork.id changes, not on every artwork change
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artwork?.id, user?._id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!artwork?.id) {
+        if (!cancelled) {
+          setIsNotInterested(false);
+          setNotInterestedMongoId(null);
+        }
+        return;
+      }
+      const id = artwork.id;
+      const local = await readMergedNotInterestedIdSet(user?._id);
+      const inLocal = local.has(id);
+      let mongo: string | null = null;
+      if (user?._id) {
+        try {
+          const list = await getNotInterested();
+          const row = list.find((x: CulturalItem) => x.id === id);
+          if (row?._id) mongo = String(row._id);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!cancelled) {
+        setNotInterestedMongoId(mongo);
+        setIsNotInterested(inLocal || !!mongo);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [artwork?.id, user?._id]);
 
   const similarSeed = useMemo(() => {
@@ -445,6 +524,14 @@ export default function ArtworkDetailsScreen() {
 
   const activeSimilarItems = similarItemsByCategory[activeSimilarCategory] || [];
 
+  const enqueueArtworkListMutation = useCallback((run: () => Promise<void>) => {
+    artworkListMutationsRef.current = artworkListMutationsRef.current
+      .then(run)
+      .catch((err) => {
+        console.warn('[artwork-details] mutación favoritos/pendiente:', err);
+      });
+  }, []);
+
   const playPreview = useCallback((previewUrl: string, trackId: string) => {
     if (playingTrackId === trackId && activePreviewUrl) {
       player.pause();
@@ -458,102 +545,125 @@ export default function ArtworkDetailsScreen() {
     hasTriggeredPlayRef.current = false;
   }, [playingTrackId, activePreviewUrl, player]);
 
-  const handleToggleFavorite = useCallback(async () => {
+  const handleToggleFavorite = useCallback(() => {
     if (!artwork || !user || !artworkPayload) return;
 
-    setUpdatingFavorite(true);
-    try {
-      if (isFavorite) {
-        // Remove from favorites - use saved mongoId
-        if (artworkMongoId) {
-          await removeFromFavorites(artworkMongoId);
-          setIsFavorite(false);
-          setArtworkMongoId(null);
-        } else {
-          // Fallback: if we don't have MongoDB ID, search (only in exceptional cases)
-          const favorites = await getFavorites();
-          const favItem = favorites.find((fav: any) => fav.id === artwork.id);
-          if (favItem?._id) {
-            await removeFromFavorites(favItem._id.toString());
-            setIsFavorite(false);
-          }
-        }
-      } else {
-        // Add to favorites - first remove from pending if it's there
-        if (isPending && artworkMongoId) {
-          try {
-            await removeFromPending(artworkMongoId);
-            setIsPending(false);
-          } catch (error) {
-            console.error('Error removing from pending:', error);
-          }
-        }
+    listInteractionEpochRef.current += 1;
 
-        const result = await addToFavorites(artworkPayload);
-        setIsFavorite(true);
-        // Si el backend retorna el artworkId, guardarlo
-        if (result.data?.artworkId) {
-          setArtworkMongoId(result.data.artworkId);
+    const prevFavorite = isFavoriteRef.current;
+    const prevPending = isPendingRef.current;
+    const nextFavorite = !prevFavorite;
+
+    isFavoriteRef.current = nextFavorite;
+    setIsFavorite(nextFavorite);
+    if (nextFavorite && prevPending) {
+      isPendingRef.current = false;
+      setIsPending(false);
+    }
+
+    enqueueArtworkListMutation(async () => {
+      try {
+        if (nextFavorite) {
+          const mongoId = artworkMongoIdRef.current;
+          if (prevPending && mongoId) {
+            try {
+              await removeFromPending(mongoId);
+            } catch (e) {
+              console.warn('removeFromPending antes de favorito:', e);
+            }
+          }
+          const result = await addToFavorites(artworkPayload);
+          const newId = result.data?.artworkId;
+          if (newId) {
+            artworkMongoIdRef.current = newId;
+            setArtworkMongoId(newId);
+          }
+        } else {
+          let mongoId = artworkMongoIdRef.current;
+          if (!mongoId) {
+            const favorites = await getFavorites();
+            const favItem = favorites.find((fav: any) => fav.id === artwork.id);
+            mongoId = favItem?._id?.toString() || null;
+          }
+          if (mongoId) {
+            await removeFromFavorites(mongoId);
+            if (!isPendingRef.current) {
+              artworkMongoIdRef.current = null;
+              setArtworkMongoId(null);
+            }
+          }
+        }
+      } catch (error: any) {
+        console.error('Error toggling favorite:', error);
+        isFavoriteRef.current = prevFavorite;
+        setIsFavorite(prevFavorite);
+        if (nextFavorite && prevPending) {
+          isPendingRef.current = true;
+          setIsPending(true);
         }
       }
-    } catch (error: any) {
-      console.error('Error toggling favorite:', error);
-      // Revert state in case of error
-      setIsFavorite(!isFavorite);
-    } finally {
-      setUpdatingFavorite(false);
-    }
-  }, [artwork, user, artworkPayload, isFavorite, artworkMongoId, isPending]);
+    });
+  }, [artwork, user, artworkPayload, enqueueArtworkListMutation]);
 
-  const handleTogglePending = useCallback(async () => {
+  const handleTogglePending = useCallback(() => {
     if (!artwork || !user || !artworkPayload) return;
 
-    setUpdatingPending(true);
-    try {
-      if (isPending) {
-        // Remove from pending - use saved mongoId
-        if (artworkMongoId) {
-          await removeFromPending(artworkMongoId);
-          setIsPending(false);
-          // Only clear artworkMongoId if not in favorites
-          if (!isFavorite) {
-            setArtworkMongoId(null);
+    listInteractionEpochRef.current += 1;
+
+    const prevPending = isPendingRef.current;
+    const prevFavorite = isFavoriteRef.current;
+    const nextPending = !prevPending;
+
+    isPendingRef.current = nextPending;
+    setIsPending(nextPending);
+    if (nextPending && prevFavorite) {
+      isFavoriteRef.current = false;
+      setIsFavorite(false);
+    }
+
+    enqueueArtworkListMutation(async () => {
+      try {
+        if (nextPending) {
+          const mongoId = artworkMongoIdRef.current;
+          if (prevFavorite && mongoId) {
+            try {
+              await removeFromFavorites(mongoId);
+            } catch (e) {
+              console.warn('removeFromFavorites antes de pendiente:', e);
+            }
+          }
+          const result = await addToPending(artworkPayload);
+          const newId = result.data?.artworkId;
+          if (newId) {
+            artworkMongoIdRef.current = newId;
+            setArtworkMongoId(newId);
           }
         } else {
-          // Fallback: if we don't have MongoDB ID, search (only in exceptional cases)
-          const pending = await getPending();
-          const pendItem = pending.find((pend: any) => pend.id === artwork.id);
-          if (pendItem?._id) {
-            await removeFromPending(pendItem._id.toString());
-            setIsPending(false);
+          let mongoId = artworkMongoIdRef.current;
+          if (!mongoId) {
+            const pending = await getPending();
+            const pendItem = pending.find((pend: any) => pend.id === artwork.id);
+            mongoId = pendItem?._id?.toString() || null;
+          }
+          if (mongoId) {
+            await removeFromPending(mongoId);
+            if (!isFavoriteRef.current) {
+              artworkMongoIdRef.current = null;
+              setArtworkMongoId(null);
+            }
           }
         }
-      } else {
-        // Add to pending - first remove from favorites if it's there
-        if (isFavorite && artworkMongoId) {
-          try {
-            await removeFromFavorites(artworkMongoId);
-            setIsFavorite(false);
-          } catch (error) {
-            console.error('Error removing from favorites:', error);
-          }
-        }
-
-        const result = await addToPending(artworkPayload);
-        setIsPending(true);
-        // If backend returns artworkId, save it (only if we don't have one already)
-        if (result.data?.artworkId && !artworkMongoId) {
-          setArtworkMongoId(result.data.artworkId);
+      } catch (error: any) {
+        console.error('Error toggling pending:', error);
+        isPendingRef.current = prevPending;
+        setIsPending(prevPending);
+        if (nextPending && prevFavorite) {
+          isFavoriteRef.current = true;
+          setIsFavorite(true);
         }
       }
-    } catch (error: any) {
-      console.error('Error toggling pending:', error);
-      // Revert state in case of error
-      setIsPending(!isPending);
-    } finally {
-      setUpdatingPending(false);
-    }
-  }, [artwork, user, artworkPayload, isPending, artworkMongoId, isFavorite]);
+    });
+  }, [artwork, user, artworkPayload, enqueueArtworkListMutation]);
 
   const handleSimilarPress = useCallback((item: CulturalItem) => {
     router.push({
@@ -567,19 +677,64 @@ export default function ArtworkDetailsScreen() {
     });
   }, [router]);
 
-  const handleNotInterested = useCallback(async () => {
+  const handleNotInterested = useCallback(() => {
     if (!artwork?.id) return;
-    try {
-      const raw = await storage.getItem(NOT_INTERESTED_STORAGE_KEY);
-      const current = raw ? JSON.parse(raw) : [];
-      const set = new Set(Array.isArray(current) ? current.filter((x) => typeof x === 'string') : []);
-      set.add(artwork.id);
-      await storage.setItem(NOT_INTERESTED_STORAGE_KEY, JSON.stringify(Array.from(set)));
-      router.back();
-    } catch (err) {
-      console.error('Error saving not interested artwork:', err);
+    const storageKey = `feed.notInterestedIds:${user?._id || 'anon'}`;
+    const payload = toArtworkPayload(artwork);
+    const id = artwork.id;
+
+    if (isNotInterested) {
+      setIsNotInterested(false);
+      void (async () => {
+        try {
+          const merged = await readMergedNotInterestedIdSet(user?._id);
+          merged.delete(id);
+          await storage.setItem(storageKey, JSON.stringify(Array.from(merged)));
+
+          if (user?._id) {
+            let mongo = notInterestedMongoId;
+            if (!mongo) {
+              const list = await getNotInterested();
+              const row = list.find((x: CulturalItem) => x.id === id);
+              mongo = row?._id ? String(row._id) : null;
+            }
+            if (mongo) await removeFromNotInterested(mongo);
+          }
+          setNotInterestedMongoId(null);
+        } catch (err) {
+          console.error('Error quitando no me interesa:', err);
+          setIsNotInterested(true);
+        }
+      })();
+      return;
     }
-  }, [artwork?.id, router]);
+
+    setIsNotInterested(true);
+    void (async () => {
+      try {
+        const merged = await readMergedNotInterestedIdSet(user?._id);
+        merged.add(id);
+        await storage.setItem(storageKey, JSON.stringify(Array.from(merged)));
+
+        if (user?._id) {
+          const res = await addToNotInterested(payload);
+          if (res.data?.artworkId) setNotInterestedMongoId(String(res.data.artworkId));
+        }
+      } catch (err) {
+        console.error('Error guardando no me interesa:', err);
+        setIsNotInterested(false);
+        try {
+          const merged = await readMergedNotInterestedIdSet(user?._id);
+          merged.delete(id);
+          await storage.setItem(storageKey, JSON.stringify(Array.from(merged)));
+        } catch {
+          /* ignore */
+        }
+      }
+    })();
+
+    router.back();
+  }, [artwork, user?._id, router, isNotInterested, notInterestedMongoId]);
 
   const getCategoryName = (cat: string) => {
     switch(cat) {
@@ -638,7 +793,7 @@ export default function ArtworkDetailsScreen() {
 
   // For music, use specific states if available
   const displayGenres = artwork.category === 'musica' && musicGenres.length > 0 ? musicGenres : genres;
-  const displayTags = artwork.category === 'musica' && musicTags.length > 0 ? musicTags : artworkTags;
+  const displayTags = artworkTags;
   const displayPlatforms = artwork.category === 'musica' && musicPlatforms.length > 0 ? musicPlatforms : artworkPlatforms;
   const displayOther = artwork.category === 'musica' && musicOther.length > 0 ? musicOther : artworkOther;
 
@@ -664,11 +819,14 @@ export default function ArtworkDetailsScreen() {
         >
           {/* Hero Image */}
           <View className="relative">
-            <Image 
-              source={{ uri: artwork.imageUrl }} 
-              style={{ width: '100%', height: 400 }} 
-              resizeMode="cover" 
-              className="bg-slate-700"
+            <Image
+              source={artwork.imageUrl}
+              style={{ width: '100%', height: 400, backgroundColor: '#334155' }}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              priority="high"
+              recyclingKey={artwork.id}
+              transition={220}
             />
           </View>
 
@@ -705,48 +863,47 @@ export default function ArtworkDetailsScreen() {
             <View className="flex-row gap-3 mb-6">
               <TouchableOpacity
                 onPress={handleToggleFavorite}
-                disabled={updatingFavorite || !user}
+                disabled={!user}
                 className={`flex-1 flex-row items-center justify-center gap-2 px-4 py-3 rounded-full ${
                   isFavorite ? 'bg-red-600' : 'bg-slate-700/60'
-                } ${updatingFavorite ? 'opacity-50' : ''}`}
+                }`}
               >
-                {updatingFavorite ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Heart 
-                    size={18} 
-                    color="#fff" 
-                    fill={isFavorite ? "#fff" : "none"} 
-                  />
-                )}
+                <Heart
+                  size={18}
+                  color="#fff"
+                  fill={isFavorite ? '#fff' : 'none'}
+                />
                 <Text className="text-white font-medium">Favorito</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 onPress={handleTogglePending}
-                disabled={updatingPending || !user}
+                disabled={!user}
                 className={`flex-1 flex-row items-center justify-center gap-2 px-4 py-3 rounded-full ${
                   isPending ? 'bg-yellow-600' : 'bg-slate-700/60'
-                } ${updatingPending ? 'opacity-50' : ''}`}
+                }`}
               >
-                {updatingPending ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Clock 
-                    size={18} 
-                    color="#fff" 
-                  />
-                )}
+                <Clock size={18} color="#fff" />
                 <Text className="text-white font-medium">Pendiente</Text>
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity
               onPress={handleNotInterested}
-              className="mb-6 bg-slate-700/60 border border-slate-600 rounded-full py-3 px-4 flex-row items-center justify-center gap-2"
+              className={`mb-6 rounded-full py-3 px-4 flex-row items-center justify-center gap-2 border ${
+                isNotInterested
+                  ? 'bg-purple-900/40 border-purple-500/70'
+                  : 'bg-slate-700/60 border-slate-600'
+              }`}
             >
-              <EyeOff size={18} color="#cbd5e1" />
-              <Text className="text-slate-200 font-medium">No me interesa</Text>
+              {isNotInterested ? (
+                <Eye size={18} color="#c4b5fd" />
+              ) : (
+                <EyeOff size={18} color="#cbd5e1" />
+              )}
+              <Text className="text-slate-200 font-medium">
+                {isNotInterested ? 'Quitar no me interesa' : 'No me interesa'}
+              </Text>
             </TouchableOpacity>
 
             {/* Botón para abrir en Spotify (solo para música) */}
@@ -762,6 +919,18 @@ export default function ArtworkDetailsScreen() {
               </TouchableOpacity>
             )}
 
+            {/* Descripción antes de la lista de canciones en álbumes */}
+            {artwork.description && (
+              <View className="mb-6">
+                <Text className="text-xl font-semibold text-white mb-3">
+                  Descripción
+                </Text>
+                <Text className="text-base text-slate-300 leading-6">
+                  {artwork.description}
+                </Text>
+              </View>
+            )}
+
             {/* Lista de Canciones (solo para música) */}
             {artwork.category === 'musica' && (
               <View className="mb-6">
@@ -773,20 +942,18 @@ export default function ArtworkDetailsScreen() {
                     <ActivityIndicator size="small" color="#22c55e" />
                   </View>
                 ) : tracks.length > 0 ? (
-                  <FlatList
-                    data={tracks}
-                    scrollEnabled={false}
-                    keyExtractor={(item, idx) => item.id || `track-${idx}`}
-                    renderItem={({ item: track, index: idx }) => {
+                  <View>
+                    {tracks.map((track, idx) => {
                       const isPlaying = playingTrackId === track.id;
                       const hasPreview = !!track.preview_url;
                       const trackSpotifyUrl = track.external_urls?.spotify;
                       const minutes = track.duration_ms ? Math.floor(track.duration_ms / 60000) : 0;
                       const seconds = track.duration_ms ? Math.floor((track.duration_ms % 60000) / 1000) : 0;
                       const artistsText = track.artists?.map((a: any) => a.name).join(', ') || 'Artista desconocido';
-                      
+
                       return (
                         <View
+                          key={track.id || `track-${idx}`}
                           className={`bg-slate-800/60 rounded-xl p-4 flex-row items-center justify-between ${idx < tracks.length - 1 ? 'mb-2' : ''}`}
                         >
                           <View className="flex-1 mr-3">
@@ -803,13 +970,14 @@ export default function ArtworkDetailsScreen() {
                             )}
                           </View>
                           <View className="flex-row items-center gap-2">
-                            {/* Botón Play/Stop - SIEMPRE visible */}
                             <TouchableOpacity
                               onPress={() => hasPreview && playPreview(track.preview_url, track.id)}
                               disabled={!hasPreview}
                               className={`w-12 h-12 rounded-full items-center justify-center ${
-                                hasPreview 
-                                  ? (isPlaying ? 'bg-red-600' : 'bg-green-600')
+                                hasPreview
+                                  ? isPlaying
+                                    ? 'bg-red-600'
+                                    : 'bg-green-600'
                                   : 'bg-slate-700 opacity-50'
                               }`}
                               activeOpacity={0.7}
@@ -824,8 +992,7 @@ export default function ArtworkDetailsScreen() {
                                 <Music size={20} color="#94a3b8" />
                               )}
                             </TouchableOpacity>
-                            
-                            {/* Botón Link a Spotify */}
+
                             {trackSpotifyUrl && (
                               <TouchableOpacity
                                 onPress={() => Linking.openURL(trackSpotifyUrl)}
@@ -838,25 +1005,13 @@ export default function ArtworkDetailsScreen() {
                           </View>
                         </View>
                       );
-                    }}
-                  />
+                    })}
+                  </View>
                 ) : (
                   <Text className="text-slate-400 text-sm">
                     No se pudieron cargar las canciones
                   </Text>
                 )}
-              </View>
-            )}
-
-            {/* Description */}
-            {artwork.description && (
-              <View className="mb-6">
-                <Text className="text-xl font-semibold text-white mb-3">
-                  Descripción
-                </Text>
-                <Text className="text-base text-slate-300 leading-6">
-                  {artwork.description}
-                </Text>
               </View>
             )}
 
@@ -913,11 +1068,13 @@ export default function ArtworkDetailsScreen() {
                       activeOpacity={0.85}
                       onPress={() => handleSimilarPress(item)}
                     >
-                      <Image
+                      <OptimizedImage
                         source={{ uri: item.imageUrl }}
                         style={{ width: '100%', height: 130 }}
                         resizeMode="cover"
-                        className="bg-slate-700"
+                        placeholderColor="#334155"
+                        recyclingKey={item.id}
+                        priority="low"
                       />
                       <View className="p-2">
                         <Text className="text-white text-xs font-semibold" numberOfLines={2}>

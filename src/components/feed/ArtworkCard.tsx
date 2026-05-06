@@ -49,8 +49,9 @@ export const ArtworkCard = React.memo(function ArtworkCard({
             source={{ uri: item.imageUrl }}
             style={{ width, height }}
             resizeMode="cover"
-            className="bg-slate-800"
             placeholderColor="#1e293b"
+            recyclingKey={item.id}
+            priority="low"
           />
           <View
             style={{ backgroundColor: categoryColor }}

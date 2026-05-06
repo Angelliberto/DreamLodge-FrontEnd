@@ -69,6 +69,7 @@ export default function UnifiedFeedScreen() {
     getCinemaTypeLabel,
     triggerImmediateSearch,
     refreshFeed,
+    feedContentVersion,
   } = useFeedScreenController(FILTER_CATEGORIES);
 
   const handlePress = useCallback((item: CulturalItem) => {
@@ -145,6 +146,7 @@ export default function UnifiedFeedScreen() {
         />
 
         <ScrollView
+          key={`feed-scroll-${feedContentVersion}`}
           className="flex-1"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 100 }}
@@ -243,6 +245,7 @@ export default function UnifiedFeedScreen() {
           hasActiveFilters={hasActiveFilters}
           feedPosterHeight={feedPosterHeight}
           renderItem={renderItem}
+          listExtraData={{ favoriteIds, pendingIds, updatingItems }}
         />
 
         <FeedFiltersModal

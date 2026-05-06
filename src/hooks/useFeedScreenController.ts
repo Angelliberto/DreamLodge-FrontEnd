@@ -6,15 +6,18 @@ import {
   addToPending,
   fetchPersonalizedFeedCurated,
   getFavorites,
+  getNotInterested,
   getPending,
-  invalidatePersonalizedFeedCache,
+  invalidateUserArtworkListCaches,
   removeFromFavorites,
   removeFromPending,
+  type PersonalizedFeedCuratedPayload,
 } from '@/api/client';
 import { globalSearch, GlobalSearchFilters } from '@/api/globalSearch';
 import { useAuth } from '@/contexts/AuthContext';
 import { CulturalCategory, CulturalItem } from '@/types/CulturalItem';
 import { getApiAlertMessage } from '@/utils/apiError';
+import { prefetchImageUris } from '@/utils/imagePrefetch';
 import { storage } from '@/utils/storage';
 import {
   FEED_CARD_ASPECT_RATIO,
@@ -29,11 +32,16 @@ export type FeedFilterCategoryOption = {
   icon: any;
 };
 
+const FEED_POLL_INTERVAL_MS = 2_500;
+const FEED_POLL_MAX_ATTEMPTS = 48;
+
 export function useFeedScreenController(filterCategories: FeedFilterCategoryOption[]) {
   const { user } = useAuth();
   const [showSearchScreen, setShowSearchScreen] = useState(false);
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<CulturalItem[]>([]);
+  /** Sube en cada refresco manual para remontar el scroll y evitar listas “pegadas” en RN. */
+  const [feedContentVersion, setFeedContentVersion] = useState(0);
   const [favoritesRecommendations, setFavoritesRecommendations] = useState<CulturalItem[]>([]);
   const [searchItems, setSearchItems] = useState<CulturalItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +67,82 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const loadingArtworksRef = useRef(false);
+  /** Pool íntegro del feed OCEAN (misma orden que devolvió API). El botón refrescar rota sobre esto. */
+  const personalizedPoolRef = useRef<CulturalItem[]>([]);
+  const favoritesRecoPoolRef = useRef<CulturalItem[]>([]);
+  const globalFeedPoolRef = useRef<CulturalItem[]>([]);
+  const feedPollAbortRef = useRef<AbortController | null>(null);
+  const prevUserIdRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    const prev = prevUserIdRef.current;
+    prevUserIdRef.current = user?._id;
+    if (prev !== undefined && prev !== user?._id) {
+      feedPollAbortRef.current?.abort();
+      personalizedPoolRef.current = [];
+      favoritesRecoPoolRef.current = [];
+      globalFeedPoolRef.current = [];
+    }
+  }, [user?._id]);
+
+  useEffect(() => {
+    return () => {
+      feedPollAbortRef.current?.abort();
+    };
+  }, []);
+
+  const startFeedWarmupPoll = useCallback(
+    (outerSignal: AbortSignal | undefined) => {
+      feedPollAbortRef.current?.abort();
+      const ac = new AbortController();
+      feedPollAbortRef.current = ac;
+
+      const run = async () => {
+        for (let i = 0; i < FEED_POLL_MAX_ATTEMPTS; i += 1) {
+          if (outerSignal?.aborted || ac.signal.aborted) return;
+          await new Promise<void>((r) => {
+            setTimeout(r, FEED_POLL_INTERVAL_MS);
+          });
+          if (outerSignal?.aborted || ac.signal.aborted) return;
+          try {
+            const [o, f] = await Promise.all([
+              fetchPersonalizedFeedCurated({
+                userId: user?._id,
+                preferFavorites: false,
+                noCache: true,
+              }),
+              fetchPersonalizedFeedCurated({
+                userId: user?._id,
+                preferFavorites: true,
+                noCache: true,
+              }),
+            ]);
+            if (outerSignal?.aborted || ac.signal.aborted) return;
+            const oItems = o.items || [];
+            const fItems = f.items || [];
+            if (oItems.length > 0) {
+              const main = oItems.slice(0, 200);
+              personalizedPoolRef.current = [...main];
+              setItems(main);
+            }
+            favoritesRecoPoolRef.current = [...fItems];
+            setFavoritesRecommendations(fItems.slice(0, 15));
+            prefetchImageUris(
+              [...oItems.slice(0, 60), ...fItems.slice(0, 15)].map((it) => it.imageUrl),
+              36
+            );
+            const oDone = !(o as PersonalizedFeedCuratedPayload).partial;
+            const fDone = !(f as PersonalizedFeedCuratedPayload).partial;
+            if (oDone && fDone) return;
+          } catch {
+            /* siguiente intento */
+          }
+        }
+      };
+      void run();
+    },
+    [user?._id]
+  );
 
   const searchFilters = useMemo<GlobalSearchFilters>(() => ({
     categories: selectedCategories,
@@ -94,7 +178,9 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     try {
       const data = await globalSearch(trimmed, { signal, filters: searchFilters });
       if (!signal?.aborted) {
-        setSearchItems(data.slice(0, 200));
+        const slice = data.slice(0, 200);
+        setSearchItems(slice);
+        prefetchImageUris(slice.map((i) => i.imageUrl), 32);
         setHasSearched(true);
         setSearchLoading(false);
       }
@@ -125,42 +211,64 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   const runGlobalDefault = useCallback(async (signal?: AbortSignal) => {
     const data = await fetchGlobalDefaultItems(signal);
     if (!signal?.aborted) {
+      globalFeedPoolRef.current = [...data];
       setItems(data);
+      prefetchImageUris(data.map((i) => i.imageUrl), 32);
       setFavoritesRecommendations([]);
+      favoritesRecoPoolRef.current = [];
     }
   }, [fetchGlobalDefaultItems]);
 
-  const loadPersonalizedDefault = useCallback(async (signal?: AbortSignal, options?: { force?: boolean }) => {
+  const loadPersonalizedDefault = useCallback(
+    async (signal?: AbortSignal, options?: { force?: boolean; noCache?: boolean }) => {
     try {
+      const bypass = Boolean(options?.noCache);
       const [oceanPayload, favoritesPayload] = await Promise.all([
         fetchPersonalizedFeedCurated({
           userId: user?._id,
           force: Boolean(options?.force),
+          noCache: bypass,
           preferFavorites: false,
         }).catch(() => ({ items: [] as CulturalItem[] })),
         fetchPersonalizedFeedCurated({
           userId: user?._id,
           force: Boolean(options?.force),
+          noCache: bypass,
           preferFavorites: true,
         }).catch(() => ({ items: [] as CulturalItem[] })),
       ]);
       if (signal?.aborted) return;
       const list = oceanPayload.items || [];
       const favoritesList = Array.isArray(favoritesPayload.items) ? favoritesPayload.items : [];
+      favoritesRecoPoolRef.current = [...favoritesList];
       setFavoritesRecommendations(favoritesList.slice(0, 15));
       if (list.length > 0) {
-        setItems(list.slice(0, 200));
+        const main = list.slice(0, 200);
+        personalizedPoolRef.current = [...main];
+        setItems(main);
+        prefetchImageUris(
+          [...main, ...favoritesList.slice(0, 15)].map((i) => i.imageUrl),
+          40
+        );
+        const oceanPartial = Boolean((oceanPayload as PersonalizedFeedCuratedPayload).partial);
+        const favoritesPartial = Boolean((favoritesPayload as PersonalizedFeedCuratedPayload).partial);
+        if (oceanPartial || favoritesPartial) {
+          startFeedWarmupPoll(signal);
+        }
         return;
       }
+      personalizedPoolRef.current = [];
       setItems([]);
     } catch (e) {
       console.warn('Feed personalizado no disponible', e);
       if (!signal?.aborted) {
+        personalizedPoolRef.current = [];
+        favoritesRecoPoolRef.current = [];
         setItems([]);
         setFavoritesRecommendations([]);
       }
     }
-  }, [user?._id]);
+  }, [user?._id, startFeedWarmupPoll]);
 
   const refreshFeed = useCallback(async () => {
     setShowSearchScreen(false);
@@ -175,22 +283,23 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     setSelectedAuthor('all');
     setYearFrom('1900');
     setYearTo(String(new Date().getFullYear()));
-    setLoading(true);
     setRefreshingFeed(true);
     try {
-      invalidatePersonalizedFeedCache();
       if (user?._id) {
-        await loadPersonalizedDefault(undefined, { force: true });
+        await loadPersonalizedDefault(undefined, { noCache: true });
       } else {
         await runGlobalDefault();
       }
+      setFeedContentVersion((v) => v + 1);
     } catch (error) {
       console.warn('No se pudo refrescar el feed personalizado', error);
       setItems([]);
       setFavoritesRecommendations([]);
+      personalizedPoolRef.current = [];
+      favoritesRecoPoolRef.current = [];
+      globalFeedPoolRef.current = [];
     } finally {
       setRefreshingFeed(false);
-      setLoading(false);
     }
   }, [loadPersonalizedDefault, runGlobalDefault, user?._id]);
 
@@ -220,26 +329,84 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     };
   }, [user?._id, loadPersonalizedDefault, runGlobalDefault]);
 
-  const loadNotInterestedIds = useCallback(async () => {
+  const syncFeedUserLists = useCallback(async () => {
     try {
-      const raw = await storage.getItem(notInterestedStorageKey);
-      if (!raw) return setNotInterestedIds(new Set());
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) setNotInterestedIds(new Set(parsed.filter((v) => typeof v === 'string')));
-    } catch (error) {
-      console.error('Error loading not interested IDs:', error);
-    }
-  }, [notInterestedStorageKey]);
+      if (!user?._id) {
+        setFavoriteIds(new Map());
+        setPendingIds(new Map());
+        const raw = await storage.getItem(notInterestedStorageKey);
+        if (!raw) {
+          setNotInterestedIds(new Set());
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setNotInterestedIds(new Set(parsed.filter((v) => typeof v === 'string')));
+        }
+        return;
+      }
 
-  useEffect(() => {
-    loadNotInterestedIds();
-  }, [loadNotInterestedIds]);
+      invalidateUserArtworkListCaches();
+      const [favorites, pending, notList] = await Promise.all([
+        getFavorites(),
+        getPending(),
+        getNotInterested().catch(() => [] as CulturalItem[]),
+      ]);
+
+      const favoritesMap = new Map<string, { mongoId?: string }>();
+      favorites.forEach((fav: CulturalItem) => favoritesMap.set(fav.id, { mongoId: fav._id?.toString() }));
+      setFavoriteIds(favoritesMap);
+
+      const pendingMap = new Map<string, { mongoId?: string }>();
+      pending.forEach((pend: CulturalItem) => pendingMap.set(pend.id, { mongoId: pend._id?.toString() }));
+      setPendingIds(pendingMap);
+
+      if (favoritesMap.size === 0) {
+        setFavoritesRecommendations([]);
+      }
+
+      const mergedNi = new Set<string>();
+      for (const it of notList) {
+        if (it?.id && typeof it.id === 'string') mergedNi.add(it.id);
+      }
+      const rawLocal = await storage.getItem(notInterestedStorageKey);
+      if (rawLocal) {
+        try {
+          const parsed = JSON.parse(rawLocal);
+          if (Array.isArray(parsed)) {
+            parsed
+              .filter((v: unknown) => typeof v === 'string')
+              .forEach((id: string) => mergedNi.add(id));
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      const legacyRaw = await storage.getItem('feed.notInterestedIds');
+      if (legacyRaw) {
+        try {
+          const parsed = JSON.parse(legacyRaw);
+          if (Array.isArray(parsed)) {
+            parsed
+              .filter((v: unknown) => typeof v === 'string')
+              .forEach((id: string) => mergedNi.add(id));
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      setNotInterestedIds(mergedNi);
+      await storage.setItem(notInterestedStorageKey, JSON.stringify(Array.from(mergedNi)));
+    } catch (error) {
+      console.error('Error syncing feed user lists:', error);
+    }
+  }, [user?._id, notInterestedStorageKey]);
 
   useFocusEffect(
     useCallback(() => {
-      loadNotInterestedIds();
+      syncFeedUserLists();
       return undefined;
-    }, [loadNotInterestedIds])
+    }, [syncFeedUserLists])
   );
 
   useEffect(() => {
@@ -265,23 +432,11 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     if (loadingArtworksRef.current) return;
 
     const loadUserArtworks = async () => {
-      if (!user?._id || loadingArtworksRef.current) return;
+      if (loadingArtworksRef.current) return;
       loadingArtworksRef.current = true;
 
       try {
-        const [favorites, pending] = await Promise.all([getFavorites(), getPending()]);
-        if (!isMounted) {
-          loadingArtworksRef.current = false;
-          return;
-        }
-
-        const favoritesMap = new Map<string, { mongoId?: string }>();
-        favorites.forEach((fav: CulturalItem) => favoritesMap.set(fav.id, { mongoId: fav._id?.toString() }));
-        setFavoriteIds(favoritesMap);
-
-        const pendingMap = new Map<string, { mongoId?: string }>();
-        pending.forEach((pend: CulturalItem) => pendingMap.set(pend.id, { mongoId: pend._id?.toString() }));
-        setPendingIds(pendingMap);
+        await syncFeedUserLists();
       } catch (error) {
         if (isMounted) console.error('Error loading user artworks:', error);
       } finally {
@@ -297,7 +452,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
       setPendingIds(new Map());
       setUpdatingItems(new Set());
     };
-  }, [user?._id]);
+  }, [user?._id, syncFeedUserLists]);
 
   const getCategoryIcon = useCallback((cat: string) => {
     return filterCategories.find((c) => c.key === cat)?.icon || filterCategories[0]?.icon;
@@ -607,5 +762,6 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     performSearch,
     triggerImmediateSearch,
     refreshFeed,
+    feedContentVersion,
   };
 }

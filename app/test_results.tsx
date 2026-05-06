@@ -113,7 +113,7 @@ export default function TestResultsScreen() {
   const [selectedDimension, setSelectedDimension] = useState<string>('openness');
   /** Listado largo de subfacetas: preview corto hasta pulsar "Ver más". */
   const [subfacetsShowAll, setSubfacetsShowAll] = useState(false);
-  /** Vista principal: puntuaciones del test vs. texto IA del perfil artístico. */
+  /** Vista principal: puntuaciones del test vs. tu análisis de personalidad. */
   const [resultsView, setResultsView] = useState<'bigFive' | 'artistic'>('bigFive');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any>({});
@@ -121,7 +121,11 @@ export default function TestResultsScreen() {
   const [generatingDescription, setGeneratingDescription] = useState(false);
   const artisticGenInFlight = useRef(false);
 
-  /** force: tras rehacer el test — borra caché local y pide al servidor regenerar descripción y obras sugeridas */
+  /**
+   * Obtiene/genera tu análisis de personalidad. El servidor solo llama al modelo cuando no hay análisis guardado
+   * para el resultado actual del test (p. ej. tras guardar o rehacer el test — saveTestResults lo borra).
+   * force: solo para una acción explícita "regenerar" (elimina el guardado en servidor); no usar tras cada entrada con params.
+   */
   const generateArtisticDescriptionForUser = useCallback(async (userId: string, force = false) => {
     if (artisticGenInFlight.current) return;
     artisticGenInFlight.current = true;
@@ -151,9 +155,9 @@ export default function TestResultsScreen() {
           const parsedResults = JSON.parse(params.results as string);
           setArtisticProfile(null);
           setResults(parsedResults);
-          // Tras completar el test: forzar regeneración de IA (perfil y obras sugeridas)
+          // Tras completar el test: saveTestResults ya limpió caché y el análisis en BD — una sola generación en servidor
           if (user?._id) {
-            generateArtisticDescriptionForUser(user._id, true);
+            generateArtisticDescriptionForUser(user._id, false);
           }
           return;
         } catch (error) {
@@ -285,7 +289,7 @@ export default function TestResultsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Conmutador: por defecto Big Five; perfil artístico aparte */}
+            {/* Conmutador: por defecto Big Five; análisis de personalidad aparte */}
             <View className="mb-6 flex-row rounded-xl border border-slate-700/60 bg-slate-900/70 p-1">
               <TouchableOpacity
                 onPress={() => setResultsView('bigFive')}
@@ -312,7 +316,7 @@ export default function TestResultsScreen() {
                     resultsView === 'artistic' ? 'text-white' : 'text-slate-400'
                   }`}
                 >
-                  Perfil artístico
+                  Análisis de personalidad
                 </Text>
               </TouchableOpacity>
             </View>
@@ -320,7 +324,7 @@ export default function TestResultsScreen() {
             {resultsView === 'artistic' && (
             <View className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-800/90 p-6 shadow-xl">
               <View className="mb-3 flex-row items-center gap-2">
-                <Text className="text-xl font-bold text-white">Tu Perfil Artístico</Text>
+                <Text className="text-xl font-bold text-white">Tu análisis de personalidad</Text>
                 {generatingDescription && (
                   <ActivityIndicator size="small" color="#a855f7" />
                 )}

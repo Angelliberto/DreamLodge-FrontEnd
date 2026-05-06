@@ -25,10 +25,12 @@ export default function AIChatScreen() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [currentConversation, setCurrentConversationState] = useState<ChatConversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showConversationList, setShowConversationList] = useState(false);
   const sendCounterRef = useRef(0);
+  /** Aborta solo la petición en curso al cambiar de conversación (salir del chat ≠ abortar → la IA sigue respondiendo). */
+  const pendingSendAbortRef = useRef<AbortController | null>(null);
+  const conversationIdRef = useRef<string | undefined>(undefined);
 
   const loadMessages = useCallback(async (conversationId: string) => {
     try {
@@ -68,17 +70,21 @@ export default function AIChatScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+  const conversationId = currentConversation?.id;
+  conversationIdRef.current = conversationId;
 
+  /** Al enfocar: sincronizar; al perder foco de la pantalla: recarga para que llegue respuesta IA en segundo plano. */
   useFocusEffect(
     useCallback(() => {
-      loadConversations();
-    }, [loadConversations])
+      void loadConversations();
+      const cid = conversationIdRef.current;
+      if (cid) void loadMessages(cid);
+      return () => {
+        const id = conversationIdRef.current;
+        if (id) void loadMessages(id);
+      };
+    }, [loadConversations, loadMessages])
   );
-
-  const conversationId = currentConversation?.id;
 
   /** Solo reaccionar al id evita recargas al refrescar la misma conversación (objeto nuevo) y condiciones de carrera con la respuesta de la IA. */
   useEffect(() => {
@@ -89,6 +95,9 @@ export default function AIChatScreen() {
     }
 
     let cancelled = false;
+
+    pendingSendAbortRef.current?.abort();
+    pendingSendAbortRef.current = null;
 
     void setCurrentConversation(conversationId);
 
@@ -164,26 +173,37 @@ export default function AIChatScreen() {
 
   const handleSend = useCallback(async (textFromInput?: string) => {
     if (!currentConversation || isLoading) return;
-    const text = String(textFromInput ?? inputText).trim();
+    const text = String(textFromInput ?? '').trim();
     if (!text) return;
 
-    setInputText('');
     setIsLoading(true);
     sendCounterRef.current += 1;
     const currentSend = sendCounterRef.current;
+    const conversationIdSending = currentConversation.id;
+
+    const ac = new AbortController();
+    pendingSendAbortRef.current = ac;
 
     try {
-      await sendMessage(currentConversation.id, text, undefined, currentConversation.title);
-      await loadMessages(currentConversation.id);
-      await loadConversations();
-    } catch (error) {
-      console.error('Error sending message:', error);
+      await sendMessage(conversationIdSending, text, ac.signal, currentConversation.title);
+      if (!ac.signal.aborted) {
+        await loadMessages(conversationIdSending);
+        await loadConversations();
+      }
+    } catch (error: any) {
+      const aborted = error?.code === 'ERR_CANCELED' || error?.name === 'AbortError';
+      if (!aborted) {
+        console.error('Error sending message:', error);
+      }
     } finally {
+      if (pendingSendAbortRef.current === ac) {
+        pendingSendAbortRef.current = null;
+      }
       if (currentSend === sendCounterRef.current) {
         setIsLoading(false);
       }
     }
-  }, [currentConversation, inputText, isLoading, loadConversations, loadMessages]);
+  }, [currentConversation, isLoading, loadConversations, loadMessages]);
 
   const giftedMessages: IMessage[] = useMemo(() => (
     messages
@@ -230,9 +250,8 @@ export default function AIChatScreen() {
   const chatListProps = useMemo(
     () => ({
       keyboardShouldPersistTaps: 'handled' as const,
-      extraData: isLoading,
     }),
-    [isLoading],
+    [],
   );
 
   const chatKeyboardInner = (
@@ -264,8 +283,6 @@ export default function AIChatScreen() {
                 key={currentConversation.id}
                 messages={giftedMessages}
                 user={{ _id: 'user', name: 'Tú' }}
-                text={inputText}
-                textInputProps={{ onChangeText: setInputText }}
                 onSend={handleGiftedSend}
                 isTyping={isLoading}
                 isAvatarVisibleForEveryMessage={false}
