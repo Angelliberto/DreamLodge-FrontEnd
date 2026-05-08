@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { Platform } from 'react-native';
 
 import { getBackendEndpoint } from '../config/api';
-import { login as apiLogin, register as apiRegister, getGoogleSignInUrl, getUserTestResults } from '@/api/client';
+import { login as apiLogin, register as apiRegister,  deleteAccount as apiDeleteAccount,getGoogleSignInUrl, getUserTestResults } from '@/api/client';
 import { AuthResponse, LoginRequest, RegisterRequest, User } from '../types';
 import { cache } from '../utils/cache';
 import { storage } from '../utils/storage';
@@ -24,6 +24,7 @@ interface AuthContextType {
   register: (data: RegisterRequest) => Promise<void>;
   googleSignIn: () => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   checkTestResults: () => Promise<void>;
   /** Fusiona campos en el usuario en memoria y en almacenamiento. */
   mergeUser: (partial: Partial<User>) => Promise<void>;
@@ -285,7 +286,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setHasQuickTest(false);
     setHasDeepTest(false);
   }, []);
+    const deleteAccount = useCallback(async () => {
+      try {
+        await apiDeleteAccount();
 
+        await storage.removeItem('userToken');
+        await storage.removeItem('userProfile');
+
+        cache.deleteByPattern(
+          /^favorites|^pending|^testResults:|^artisticDescription:|^personalizedFeed:/
+        );
+
+        await storage.removeItem('chat_current_conversation');
+
+        activeUserIdRef.current = null;
+        setUser(null);
+        setHasTestResults(false);
+        setHasQuickTest(false);
+        setHasDeepTest(false);
+      } catch (error) {
+        throw error;
+      }
+    }, []);
   // Memoize context value to avoid unnecessary re-renders
   const contextValue = useMemo(() => ({
     user, 
@@ -294,12 +316,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     hasQuickTest, 
     hasDeepTest,
     login, 
+    deleteAccount,
     register, 
     googleSignIn,
     logout, 
     checkTestResults,
     mergeUser,
-  }), [user, isLoading, hasTestResults, hasQuickTest, hasDeepTest, login, register, googleSignIn, logout, checkTestResults, mergeUser]);
+  }), [user, isLoading, hasTestResults, hasQuickTest, hasDeepTest, login, register, googleSignIn,  deleteAccount, logout, checkTestResults, mergeUser]);
 
   return (
     <AuthContext.Provider value={contextValue}>

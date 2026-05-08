@@ -1,6 +1,7 @@
+import { saveTestResults } from '@/api/client';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Brain, Check, CheckCircle2, LogOut, Star } from 'lucide-react-native';
+import { ArrowLeft, Brain, Check, CheckCircle2, Star } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,7 +16,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import easierTestData from '../../app/data/easier_test.json';
 import questionsData from '../../app/data/questions_json.json';
 import { useAuth } from '../contexts/AuthContext';
-import { saveTestResults } from '@/api/client';
 import { BottomNavigation } from './BottomNavigation';
 import { NavigationBar } from './NavigationBar';
 import { BackgroundLayout } from './ui/BackgroundLayout';
@@ -115,13 +115,7 @@ export function TestSelectionScreen() {
               >
                 <Text className="text-xs font-medium text-slate-300">Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={handleLogout}
-                className="flex-row items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5"
-              >
-                <LogOut size={12} color="#ef4444" />
-                <Text className="text-red-400 font-medium text-xs">Salir</Text>
-              </TouchableOpacity>
+              
             </View>
           </View>
         </View>
