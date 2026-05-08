@@ -442,6 +442,10 @@ export type PersonalizedFeedCuratedPayload = {
   webSearchUsed?: boolean;
   reason?: string;
   cached?: boolean;
+  buildStatus?: 'building' | 'ready' | 'failed';
+  buildId?: string | null;
+  buildVersion?: number;
+  generatedAt?: number;
 };
 
 export async function fetchPersonalizedFeedCurated(options?: {
@@ -449,6 +453,7 @@ export async function fetchPersonalizedFeedCurated(options?: {
   anchorsOnly?: boolean;
   preferFavorites?: boolean;
   userId?: string;
+  async?: boolean;
 }): Promise<PersonalizedFeedCuratedPayload> {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
@@ -471,12 +476,18 @@ export async function fetchPersonalizedFeedCurated(options?: {
     cache.delete(cacheKey);
   } else {
     const cached = cache.get<PersonalizedFeedCuratedPayload>(cacheKey);
-    if (cached) return cached;
+    // No usar caché mientras async=1 está generando feed en backend (si no, el poll nunca ve "ready").
+    if (cached && options?.async !== false && cached.buildStatus === 'building') {
+      cache.delete(cacheKey);
+    } else if (cached) {
+      return cached;
+    }
   }
   const params: Record<string, string | number> = {};
   if (options?.force) params.force = 1;
   if (options?.anchorsOnly) params.anchorsOnly = 1;
   if (options?.preferFavorites) params.preferFavorites = 1;
+  params.async = options?.async === false ? 0 : 1;
   const response = await axios.get<{
     message?: string;
     data: PersonalizedFeedCuratedPayload;
@@ -488,10 +499,14 @@ export async function fetchPersonalizedFeedCurated(options?: {
   if (!Array.isArray(payload.items)) {
     return { ...payload, items: [] };
   }
-  cache.set(
-    cacheKey,
-    payload,
-    options?.anchorsOnly ? CACHE_TTL.personalizedFeedAnchors : CACHE_TTL.personalizedFeed
-  );
+  const skipCacheWhileBuilding =
+    options?.async !== false && payload.buildStatus === 'building';
+  if (!skipCacheWhileBuilding) {
+    cache.set(
+      cacheKey,
+      payload,
+      options?.anchorsOnly ? CACHE_TTL.personalizedFeedAnchors : CACHE_TTL.personalizedFeed
+    );
+  }
   return payload;
 }

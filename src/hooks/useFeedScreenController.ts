@@ -10,6 +10,7 @@ import {
   getPending,
   invalidatePersonalizedFeedCache,
   invalidateUserArtworkListCaches,
+  PersonalizedFeedCuratedPayload,
   removeFromFavorites,
   removeFromPending,
 } from '@/api/client';
@@ -30,15 +31,6 @@ export type FeedFilterCategoryOption = {
   key: CulturalCategory;
   label: string;
   icon: any;
-};
-
-const shuffleArray = <T,>(list: T[]): T[] => {
-  const next = [...list];
-  for (let i = next.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [next[i], next[j]] = [next[j], next[i]];
-  }
-  return next;
 };
 
 const normalizeText = (value: string | undefined | null): string =>
@@ -109,12 +101,6 @@ const getSearchScore = (item: CulturalItem, query: string): number => {
   return score;
 };
 
-const logFeedLatency = (event: string, startedAt: number, extra?: Record<string, unknown>) => {
-  const elapsedMs = Date.now() - startedAt;
-  const payload = extra ? ` ${JSON.stringify(extra)}` : '';
-  console.log(`[FEED_LATENCY] ${event} took ${elapsedMs}ms${payload}`);
-};
-
 export function useFeedScreenController(filterCategories: FeedFilterCategoryOption[]) {
   const { user } = useAuth();
   const [showSearchScreen, setShowSearchScreen] = useState(false);
@@ -142,8 +128,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const loadingArtworksRef = useRef(false);
-  const searchVisibleStartAtRef = useRef<number | null>(null);
-  const feedVisibleStartAtRef = useRef<number | null>(null);
+  const feedRebuildPollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchFilters = useMemo<GlobalSearchFilters>(() => ({
     categories: selectedCategories,
@@ -167,8 +152,6 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     }
 
     setSearchLoading(true);
-    searchVisibleStartAtRef.current = Date.now();
-    const startedAt = Date.now();
     try {
       const data = await globalSearch(trimmed, { signal, filters: searchFilters });
       if (!signal?.aborted) {
@@ -180,17 +163,10 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
         prefetchImageUris(slice.map((i) => i.imageUrl), 32);
         setHasSearched(true);
         setSearchLoading(false);
-        logFeedLatency('search_results_visible', startedAt, {
-          queryLength: trimmed.length,
-          resultCount: slice.length,
-        });
       }
     } catch (error) {
       if (!signal?.aborted) {
         setSearchLoading(false);
-        logFeedLatency('search_results_error', startedAt, {
-          queryLength: trimmed.length,
-        });
         console.error('Error performing search:', error);
       }
     }
@@ -213,63 +189,34 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   }, []);
 
   const runGlobalDefault = useCallback(async (signal?: AbortSignal) => {
-    feedVisibleStartAtRef.current = Date.now();
-    const startedAt = Date.now();
     const data = await fetchGlobalDefaultItems(signal);
     if (!signal?.aborted) {
       setItems(data);
       prefetchImageUris(data.map((i) => i.imageUrl), 32);
       setFavoritesRecommendations([]);
-      logFeedLatency('default_feed_visible_global', startedAt, {
-        resultCount: data.length,
-      });
     }
   }, [fetchGlobalDefaultItems]);
 
   const loadPersonalizedDefault = useCallback(async (signal?: AbortSignal, options?: { force?: boolean }) => {
-    feedVisibleStartAtRef.current = Date.now();
-    const startedAt = Date.now();
-    const taskTimes: { task: string; ms: number }[] = [];
-    const timedFetch = async (
-      task: 'personalized_main' | 'personalized_favorites',
-      fn: () => Promise<{ items: CulturalItem[] }>
-    ): Promise<{ items: CulturalItem[] }> => {
-      const taskStart = Date.now();
-      try {
-        return await fn();
-      } finally {
-        taskTimes.push({ task, ms: Date.now() - taskStart });
-      }
-    };
     try {
       const [oceanPayload, favoritesPayload] = await Promise.all([
-        timedFetch('personalized_main', () =>
-          fetchPersonalizedFeedCurated({
-            userId: user?._id,
-            force: Boolean(options?.force),
-            preferFavorites: false,
-          }).catch(() => ({ items: [] as CulturalItem[] }))
-        ),
-        timedFetch('personalized_favorites', () =>
-          fetchPersonalizedFeedCurated({
-            userId: user?._id,
-            force: Boolean(options?.force),
-            preferFavorites: true,
-          }).catch(() => ({ items: [] as CulturalItem[] }))
-        ),
+        fetchPersonalizedFeedCurated({
+          userId: user?._id,
+          force: Boolean(options?.force),
+          preferFavorites: false,
+        }).catch((): PersonalizedFeedCuratedPayload => ({ items: [] })),
+        fetchPersonalizedFeedCurated({
+          userId: user?._id,
+          force: Boolean(options?.force),
+          preferFavorites: true,
+        }).catch((): PersonalizedFeedCuratedPayload => ({ items: [] })),
       ]);
       if (signal?.aborted) return;
       const list = oceanPayload.items || [];
       const favoritesList = Array.isArray(favoritesPayload.items) ? favoritesPayload.items : [];
+      const isBuilding =
+        oceanPayload.buildStatus === 'building' || favoritesPayload.buildStatus === 'building';
       setFavoritesRecommendations(favoritesList.slice(0, 15));
-      const slowestTask = taskTimes.sort((a, b) => b.ms - a.ms)[0];
-      if (slowestTask) {
-        console.log(
-          `[FEED_SLOWEST_TASK] ${slowestTask.task} took ${slowestTask.ms}ms ${JSON.stringify({
-            allTasks: taskTimes,
-          })}`
-        );
-      }
       if (list.length > 0) {
         const main = list.slice(0, 200);
         setItems(main);
@@ -277,33 +224,31 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
           [...main, ...favoritesList.slice(0, 15)].map((i) => i.imageUrl),
           40
         );
-        logFeedLatency('default_feed_visible_personalized', startedAt, {
-          mainCount: main.length,
-          favoritesCount: favoritesList.length,
-          force: Boolean(options?.force),
-        });
+        if (isBuilding && !feedRebuildPollTimerRef.current) {
+          feedRebuildPollTimerRef.current = setTimeout(() => {
+            feedRebuildPollTimerRef.current = null;
+            loadPersonalizedDefault(undefined, { force: false });
+          }, 4000);
+        }
         return;
       }
       setItems([]);
-      logFeedLatency('default_feed_visible_personalized_empty', startedAt, {
-        favoritesCount: favoritesList.length,
-        force: Boolean(options?.force),
-      });
+      if (isBuilding && !feedRebuildPollTimerRef.current) {
+        feedRebuildPollTimerRef.current = setTimeout(() => {
+          feedRebuildPollTimerRef.current = null;
+          loadPersonalizedDefault(undefined, { force: false });
+        }, 4000);
+      }
     } catch (e) {
       console.warn('Feed personalizado no disponible', e);
       if (!signal?.aborted) {
         setItems([]);
         setFavoritesRecommendations([]);
-        logFeedLatency('default_feed_visible_personalized_error', startedAt, {
-          force: Boolean(options?.force),
-        });
       }
     }
   }, [user?._id]);
 
   const refreshFeed = useCallback(async () => {
-    const startedAt = Date.now();
-    feedVisibleStartAtRef.current = startedAt;
     setShowSearchScreen(false);
     setShowFilters(false);
     setQuery('');
@@ -328,9 +273,6 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     } finally {
       setRefreshingFeed(false);
       setLoading(false);
-      logFeedLatency('refresh_feed_complete', startedAt, {
-        isLoggedIn: Boolean(user?._id),
-      });
     }
   }, [loadPersonalizedDefault, runGlobalDefault, user?._id]);
 
@@ -357,6 +299,10 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     return () => {
       abortController.abort();
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (feedRebuildPollTimerRef.current) {
+        clearTimeout(feedRebuildPollTimerRef.current);
+        feedRebuildPollTimerRef.current = null;
+      }
     };
   }, [user?._id, loadPersonalizedDefault, runGlobalDefault]);
 
@@ -561,13 +507,19 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     if (!favoritesRecommendations.length) return [];
     const maxRecommendations = 15;
     const minPerType = 3;
-    const favoriteTypeOrder = shuffleArray(
-      Array.from(new Set(favoriteItems.map((fav) => fav.category).filter(Boolean)))
+    const categoriesPresent = new Set(
+      favoriteItems
+        .map((fav) => fav.category)
+        .filter((c): c is CulturalCategory => Boolean(c))
     );
-    const candidatePool = shuffleArray(
-      favoritesRecommendations.filter(
-        (item) => !notInterestedIds.has(item.id) && !favoriteIds.has(item.id)
-      )
+    const orderedFromFilter = filterCategories
+      .map((c) => c.key)
+      .filter((key) => categoriesPresent.has(key));
+    const extraCategories = [...categoriesPresent].filter((k) => !orderedFromFilter.includes(k));
+    extraCategories.sort((a, b) => a.localeCompare(b));
+    const favoriteTypeOrder = [...orderedFromFilter, ...extraCategories];
+    const candidatePool = favoritesRecommendations.filter(
+      (item) => !notInterestedIds.has(item.id) && !favoriteIds.has(item.id)
     );
 
     if (!favoriteTypeOrder.length) {
@@ -606,36 +558,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     }
 
     return picked;
-  }, [favoritesRecommendations, notInterestedIds, favoriteItems, favoriteIds]);
-
-  useEffect(() => {
-    if (!showSearchScreen || searchLoading) return;
-    if (searchVisibleStartAtRef.current == null) return;
-    if (query.trim().length === 0) return;
-    if (!hasSearched) return;
-    logFeedLatency('front_results_visible_search', searchVisibleStartAtRef.current, {
-      queryLength: query.trim().length,
-      resultCount: filteredSearchItems.length,
-    });
-    searchVisibleStartAtRef.current = null;
-  }, [showSearchScreen, searchLoading, hasSearched, query, filteredSearchItems.length]);
-
-  useEffect(() => {
-    if (loading || refreshingFeed) return;
-    if (feedVisibleStartAtRef.current == null) return;
-    if (showSearchScreen) return;
-    logFeedLatency('front_results_visible_feed', feedVisibleStartAtRef.current, {
-      resultCount: filteredItems.length,
-      favoritesCount: favoritesRecommendationLine.length,
-    });
-    feedVisibleStartAtRef.current = null;
-  }, [
-    loading,
-    refreshingFeed,
-    showSearchScreen,
-    filteredItems.length,
-    favoritesRecommendationLine.length,
-  ]);
+  }, [favoritesRecommendations, notInterestedIds, favoriteItems, favoriteIds, filterCategories]);
 
   const recommendationsByCategory = useMemo(() => {
     const grouped = new Map<CulturalCategory, CulturalItem[]>();
