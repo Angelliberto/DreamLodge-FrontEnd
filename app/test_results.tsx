@@ -324,7 +324,6 @@ export default function TestResultsScreen() {
             {resultsView === 'artistic' && (
             <View className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-800/90 p-6 shadow-xl">
               <View className="mb-3 flex-row items-center gap-2">
-                <Text className="text-xl font-bold text-white">Tu análisis de personalidad</Text>
                 {generatingDescription && (
                   <ActivityIndicator size="small" color="#a855f7" />
                 )}

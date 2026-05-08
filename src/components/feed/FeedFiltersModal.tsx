@@ -1,6 +1,6 @@
-import { Check, ChevronDown, X } from 'lucide-react-native';
+import { Check, X } from 'lucide-react-native';
 import React from 'react';
-import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { CulturalCategory } from '@/types/CulturalItem';
 
 type FilterCategoryOption = {
@@ -15,18 +15,9 @@ type FeedFiltersModalProps = {
   filterCategories: FilterCategoryOption[];
   selectedCategories: CulturalCategory[];
   toggleCategory: (category: CulturalCategory) => void;
-  selectedCinemaType: 'all' | 'movie' | 'series';
-  setSelectedCinemaType: (type: 'all' | 'movie' | 'series') => void;
   availableGenres: string[];
   selectedGenres: string[];
   toggleGenre: (genre: string) => void;
-  availableAuthors: string[];
-  selectedAuthor: string;
-  setSelectedAuthor: (author: string) => void;
-  yearFrom: string;
-  setYearFrom: (value: string) => void;
-  yearTo: string;
-  setYearTo: (value: string) => void;
   clearFilters: () => void;
 };
 
@@ -36,18 +27,9 @@ export function FeedFiltersModal({
   filterCategories,
   selectedCategories,
   toggleCategory,
-  selectedCinemaType,
-  setSelectedCinemaType,
   availableGenres,
   selectedGenres,
   toggleGenre,
-  availableAuthors,
-  selectedAuthor,
-  setSelectedAuthor,
-  yearFrom,
-  setYearFrom,
-  yearTo,
-  setYearTo,
   clearFilters,
 }: FeedFiltersModalProps) {
   return (
@@ -65,7 +47,7 @@ export function FeedFiltersModal({
             <View className="pr-2">
               <Text className="text-[24px] font-bold text-white">Filtros</Text>
               <Text className="text-sm text-slate-400 mt-1">
-                Refina tu búsqueda por tipo, género y más
+                Filtra por arte y género
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} className="p-2 rounded-full">
@@ -100,32 +82,8 @@ export function FeedFiltersModal({
               })}
             </View>
 
-            <Text className="text-[18px] font-semibold text-white mb-2">Tipo cine</Text>
-            <View className="flex-row flex-wrap mb-4">
-              {[
-                { id: 'all', label: 'Todos' },
-                { id: 'movie', label: 'Películas' },
-                { id: 'series', label: 'Series' },
-              ].map((option) => {
-                const selected = selectedCinemaType === option.id;
-                return (
-                  <TouchableOpacity
-                    key={option.id}
-                    className={`rounded-full px-3 py-1 mr-2 mb-2 border ${
-                      selected ? 'bg-purple-600/30 border-purple-400' : 'bg-slate-800 border-slate-600'
-                    }`}
-                    onPress={() => setSelectedCinemaType(option.id as 'all' | 'movie' | 'series')}
-                  >
-                    <Text className={`text-sm ${selected ? 'text-purple-200 font-semibold' : 'text-slate-300'}`}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
             <Text className="text-[18px] font-semibold text-white mb-2">Géneros (muestra máx. 15)</Text>
-            <View className="flex-row flex-wrap mb-4">
+            <View className="flex-row flex-wrap mb-5">
               {availableGenres.map((genre) => {
                 const selected = selectedGenres.includes(genre);
                 return (
@@ -142,44 +100,6 @@ export function FeedFiltersModal({
                   </TouchableOpacity>
                 );
               })}
-            </View>
-
-            <Text className="text-[18px] font-semibold text-white mb-2">Autor</Text>
-            <TouchableOpacity
-              className="h-11 bg-slate-800 border border-slate-600 rounded-lg px-3 flex-row items-center justify-between mb-5"
-              onPress={() => {
-                const idx = availableAuthors.findIndex((a) => a === selectedAuthor);
-                const next = availableAuthors[(idx + 1) % availableAuthors.length] || 'all';
-                setSelectedAuthor(next);
-              }}
-            >
-              <Text className="text-slate-300 text-base">
-                {selectedAuthor === 'all' ? 'Todos los autores' : selectedAuthor}
-              </Text>
-              <ChevronDown size={18} color="#94a3b8" />
-            </TouchableOpacity>
-
-            <View className="flex-row gap-3 mb-5">
-              <View className="flex-1">
-                <Text className="text-[18px] font-semibold text-white mb-2">Año desde</Text>
-                <TextInput
-                  value={yearFrom}
-                  onChangeText={setYearFrom}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  className="h-11 bg-slate-800 border border-slate-600 rounded-lg px-3 text-slate-200 text-base"
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-[18px] font-semibold text-white mb-2">Año hasta</Text>
-                <TextInput
-                  value={yearTo}
-                  onChangeText={setYearTo}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  className="h-11 bg-slate-800 border border-slate-600 rounded-lg px-3 text-slate-200 text-base"
-                />
-              </View>
             </View>
           </ScrollView>
 

@@ -96,7 +96,7 @@ export function SearchFeedModal({
           {searchLoading ? (
             <View className="flex-1 justify-center items-center">
               <ActivityIndicator size="large" color="#c084fc" />
-              <Text className="mt-4 text-slate-400">Explorando el universo...</Text>
+              <Text className="mt-4 text-slate-400">Explorando...</Text>
             </View>
           ) : !hasSearched ? (
             <View className="flex-1 justify-center items-center px-8">

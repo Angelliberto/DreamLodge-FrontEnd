@@ -35,15 +35,7 @@ export default function UnifiedFeedScreen() {
     showFilters,
     setShowFilters,
     selectedCategories,
-    selectedCinemaType,
-    setSelectedCinemaType,
     selectedGenres,
-    selectedAuthor,
-    setSelectedAuthor,
-    yearFrom,
-    setYearFrom,
-    yearTo,
-    setYearTo,
     hasActiveFilters,
     favoriteIds,
     pendingIds,
@@ -54,7 +46,6 @@ export default function UnifiedFeedScreen() {
     favoritesRecommendationLine,
     recommendationsByCategory,
     availableGenres,
-    availableAuthors,
     feedCardWidth,
     feedPosterHeight,
     recommendationCardWidth,
@@ -69,7 +60,6 @@ export default function UnifiedFeedScreen() {
     getCinemaTypeLabel,
     triggerImmediateSearch,
     refreshFeed,
-    feedContentVersion,
   } = useFeedScreenController(FILTER_CATEGORIES);
 
   const handlePress = useCallback((item: CulturalItem) => {
@@ -146,7 +136,6 @@ export default function UnifiedFeedScreen() {
         />
 
         <ScrollView
-          key={`feed-scroll-${feedContentVersion}`}
           className="flex-1"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 100 }}
@@ -254,18 +243,9 @@ export default function UnifiedFeedScreen() {
           filterCategories={FILTER_CATEGORIES}
           selectedCategories={selectedCategories}
           toggleCategory={toggleCategory}
-          selectedCinemaType={selectedCinemaType}
-          setSelectedCinemaType={setSelectedCinemaType}
           availableGenres={availableGenres}
           selectedGenres={selectedGenres}
           toggleGenre={toggleGenre}
-          availableAuthors={availableAuthors}
-          selectedAuthor={selectedAuthor}
-          setSelectedAuthor={setSelectedAuthor}
-          yearFrom={yearFrom}
-          setYearFrom={setYearFrom}
-          yearTo={yearTo}
-          setYearTo={setYearTo}
           clearFilters={clearFilters}
         />
 

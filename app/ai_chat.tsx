@@ -1,13 +1,38 @@
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
-import { Bubble, Composer, GiftedChat, IMessage, InputToolbar, Send as GiftedSend } from 'react-native-gifted-chat';
 import { Bot, Menu, Sparkles, User, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  Bubble,
+  Composer,
+  GiftedChat,
+  IMessage,
+  InputToolbar,
+  Send as GiftedSend,
+} from 'react-native-gifted-chat';
 import { KeyboardAvoidingView as KeyboardControllerAvoidingView } from 'react-native-keyboard-controller';
+import ReanimatedAnimated, {
+  FadeIn,
+  FadeOut,
+  SlideInLeft,
+  SlideOutLeft,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomNavigation } from '../src/components/BottomNavigation';
 import { ConversationList } from '../src/components/chat/ConversationList';
+import { ChatTypingDots } from '../src/components/chat/ChatTypingDots';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import {
   createConversation,
@@ -15,27 +40,49 @@ import {
   getConversations,
   getMessages,
   loadCurrentConversation,
+  mergeChatMessagesById,
   sendMessage,
   setCurrentConversation,
+  subscribeAiPending,
+  isAwaitingAiResponse,
   subscribeToMessages
 } from '../src/services/chat/chatService';
 import { ChatConversation, ChatMessage } from '../src/types/chat';
+
+function runSoftHaptic() {
+  if (Platform.OS !== 'web') {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+}
+
+function runSuccessHaptic() {
+  if (Platform.OS !== 'web') {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+}
+
+function runErrorHaptic() {
+  if (Platform.OS !== 'web') {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  }
+}
 
 export default function AIChatScreen() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [currentConversation, setCurrentConversationState] = useState<ChatConversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [showConversationList, setShowConversationList] = useState(false);
-  const sendCounterRef = useRef(0);
-  /** Aborta solo la petición en curso al cambiar de conversación (salir del chat ≠ abortar → la IA sigue respondiendo). */
-  const pendingSendAbortRef = useRef<AbortController | null>(null);
   const conversationIdRef = useRef<string | undefined>(undefined);
+  /** Se incrementa al cambiar peticiones IA en curso (pantalla montada o no). */
+  const [aiPendingUiTick, setAiPendingUiTick] = useState(0);
 
   const loadMessages = useCallback(async (conversationId: string) => {
     try {
       const msgs = await getMessages(conversationId);
-      setMessages(msgs);
+      setMessages((prev) => {
+        if (conversationIdRef.current !== conversationId) return prev;
+        return mergeChatMessagesById(prev, msgs);
+      });
     } catch (error) {
       console.error('Error loading messages:', error);
     }
@@ -73,16 +120,22 @@ export default function AIChatScreen() {
   const conversationId = currentConversation?.id;
   conversationIdRef.current = conversationId;
 
-  /** Al enfocar: sincronizar; al perder foco de la pantalla: recarga para que llegue respuesta IA en segundo plano. */
+  /** Solo la conversación abierta: otra conv puede seguir generando en segundo plano sin mostrar el footer aquí. */
+  const showTypingIndicator =
+    aiPendingUiTick >= 0 &&
+    Boolean(conversationId && isAwaitingAiResponse(conversationId));
+
+  useEffect(
+    () => subscribeAiPending(() => setAiPendingUiTick((t) => t + 1)),
+    []
+  );
+
+  /** Al volver a esta pantalla: sincronizar conversaciones y mensajes (sin recarga al salir: evita condiciones de carrera con el envío). */
   useFocusEffect(
     useCallback(() => {
       void loadConversations();
       const cid = conversationIdRef.current;
       if (cid) void loadMessages(cid);
-      return () => {
-        const id = conversationIdRef.current;
-        if (id) void loadMessages(id);
-      };
     }, [loadConversations, loadMessages])
   );
 
@@ -96,15 +149,14 @@ export default function AIChatScreen() {
 
     let cancelled = false;
 
-    pendingSendAbortRef.current?.abort();
-    pendingSendAbortRef.current = null;
-
     void setCurrentConversation(conversationId);
+    setMessages([]);
 
     void (async () => {
       try {
         const msgs = await getMessages(conversationId);
-        if (!cancelled) setMessages(msgs);
+        if (cancelled || conversationIdRef.current !== conversationId) return;
+        setMessages(msgs);
       } catch (error) {
         console.error('Error loading messages:', error);
       }
@@ -119,9 +171,18 @@ export default function AIChatScreen() {
     if (!conversationId) return;
 
     const unsubscribe = subscribeToMessages(conversationId, (newMessage) => {
-      setMessages(prev => {
-        if (prev.some(msg => msg.id === newMessage.id)) return prev;
-        return [...prev, newMessage];
+      setMessages((prev) => {
+        const i = prev.findIndex((msg) => msg.id === newMessage.id);
+        if (i >= 0) {
+          const next = [...prev];
+          next[i] = newMessage;
+          return next.sort(
+            (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          );
+        }
+        return [...prev, newMessage].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
       });
     });
 
@@ -172,38 +233,43 @@ export default function AIChatScreen() {
   };
 
   const handleSend = useCallback(async (textFromInput?: string) => {
-    if (!currentConversation || isLoading) return;
+    if (!currentConversation) return;
+    if (isAwaitingAiResponse(currentConversation.id)) return;
     const text = String(textFromInput ?? '').trim();
     if (!text) return;
 
-    setIsLoading(true);
-    sendCounterRef.current += 1;
-    const currentSend = sendCounterRef.current;
+    runSoftHaptic();
+
     const conversationIdSending = currentConversation.id;
 
-    const ac = new AbortController();
-    pendingSendAbortRef.current = ac;
-
     try {
-      await sendMessage(conversationIdSending, text, ac.signal, currentConversation.title);
-      if (!ac.signal.aborted) {
-        await loadMessages(conversationIdSending);
-        await loadConversations();
+      const aiMsg = await sendMessage(
+        conversationIdSending,
+        text,
+        undefined,
+        currentConversation.title
+      );
+      const failed = Boolean(aiMsg?.text?.trim().startsWith('Error:'));
+      if (failed) {
+        runErrorHaptic();
+      } else {
+        runSuccessHaptic();
       }
+      if (conversationIdRef.current === conversationIdSending) {
+        await loadMessages(conversationIdSending);
+      }
+      await loadConversations();
     } catch (error: any) {
-      const aborted = error?.code === 'ERR_CANCELED' || error?.name === 'AbortError';
+      const aborted =
+        error?.code === 'ERR_CANCELED' ||
+        error?.name === 'AbortError' ||
+        error?.name === 'CanceledError';
       if (!aborted) {
+        runErrorHaptic();
         console.error('Error sending message:', error);
       }
-    } finally {
-      if (pendingSendAbortRef.current === ac) {
-        pendingSendAbortRef.current = null;
-      }
-      if (currentSend === sendCounterRef.current) {
-        setIsLoading(false);
-      }
     }
-  }, [currentConversation, isLoading, loadConversations, loadMessages]);
+  }, [currentConversation, loadConversations, loadMessages]);
 
   const giftedMessages: IMessage[] = useMemo(() => (
     messages
@@ -234,23 +300,28 @@ export default function AIChatScreen() {
 
   const renderTypingFooter = useCallback(
     () =>
-      isLoading ? (
+      showTypingIndicator ? (
         <View className="px-3 py-2">
-          <View className="bg-slate-800/80 border border-slate-700/50 rounded-xl px-3 py-2 self-start">
-            <View className="flex-row items-center gap-2">
-              <ActivityIndicator size="small" color="#c084fc" />
-              <Text className="text-slate-300 text-xs">La IA está escribiendo...</Text>
-            </View>
+          <View className="bg-slate-800/90 border border-slate-700/50 rounded-xl px-3 py-2.5 self-start flex-row items-center gap-3">
+            <ChatTypingDots />
+            <Text className="text-slate-400 text-xs">Generando respuesta...</Text>
           </View>
         </View>
       ) : null,
-    [isLoading],
+    [showTypingIndicator],
   );
 
   const chatListProps = useMemo(
-    () => ({
-      keyboardShouldPersistTaps: 'handled' as const,
-    }),
+    () =>
+      ({
+        keyboardShouldPersistTaps: 'handled',
+        ...(Platform.OS === 'ios'
+          ? { keyboardDismissMode: 'interactive' as const }
+          : Platform.OS !== 'web'
+            ? { keyboardDismissMode: 'on-drag' as const }
+            : {}),
+        showsVerticalScrollIndicator: false,
+      }) as const,
     [],
   );
 
@@ -284,7 +355,7 @@ export default function AIChatScreen() {
                 messages={giftedMessages}
                 user={{ _id: 'user', name: 'Tú' }}
                 onSend={handleGiftedSend}
-                isTyping={isLoading}
+                isTyping={showTypingIndicator}
                 isAvatarVisibleForEveryMessage={false}
                 isSendButtonAlwaysVisible
                 listProps={chatListProps}
@@ -340,6 +411,7 @@ export default function AIChatScreen() {
                     {...props}
                     textInputProps={{
                       ...props.textInputProps,
+                      editable: !showTypingIndicator,
                       placeholder: 'Escribe tu mensaje...',
                       placeholderTextColor: '#64748b',
                       style: [
@@ -363,9 +435,16 @@ export default function AIChatScreen() {
                     {...props}
                     containerStyle={{ justifyContent: 'center', marginBottom: 2, marginRight: 4 }}
                   >
-                    <View className="bg-purple-600 rounded-xl px-4 py-2.5">
-                      <Text className="text-white font-semibold text-sm">Enviar</Text>
-                    </View>
+                    <LinearGradient
+                      colors={['#9333ea', '#7e22ce']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={{ borderRadius: 12, opacity: props.text?.trim()?.length ? 1 : 0.55 }}
+                    >
+                      <View className="px-4 py-2.5">
+                        <Text className="text-white font-semibold text-sm">Enviar</Text>
+                      </View>
+                    </LinearGradient>
                   </GiftedSend>
                 )}
                 renderFooter={renderTypingFooter}
@@ -391,12 +470,18 @@ export default function AIChatScreen() {
           <View className="px-4 pt-3 pb-3 border-b border-slate-800/50 bg-slate-900/50">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-3 flex-1">
-                <TouchableOpacity
-                  onPress={() => setShowConversationList(!showConversationList)}
-                  className="p-2"
+                <Pressable
+                  onPress={() => {
+                    const next = !showConversationList;
+                    if (next && Platform.OS !== 'web') {
+                      void Haptics.selectionAsync();
+                    }
+                    setShowConversationList(next);
+                  }}
+                  className="p-2 rounded-xl active:bg-white/10"
                 >
                   <Menu size={20} color="white" />
-                </TouchableOpacity>
+                </Pressable>
                 <View className="flex-row items-center gap-2 flex-1">
                   <LinearGradient
                     colors={['#a855f7', '#ec4899']}
@@ -416,18 +501,52 @@ export default function AIChatScreen() {
 
           {showConversationList && (
             <>
-              <TouchableOpacity
-                className="absolute inset-0 bg-black/50 z-40"
-                onPress={() => setShowConversationList(false)}
-                activeOpacity={1}
-              />
-              <View className="absolute left-0 top-0 bottom-0 w-80 bg-slate-900 border-r border-slate-800 z-50">
+              {Platform.OS === 'web' ? (
+                <Pressable
+                  style={[StyleSheet.absoluteFillObject, { zIndex: 40 }]}
+                  onPress={() => setShowConversationList(false)}
+                >
+                  <View className="absolute inset-0 bg-black/55" />
+                </Pressable>
+              ) : (
+                <ReanimatedAnimated.View
+                  entering={FadeIn.duration(200)}
+                  exiting={FadeOut.duration(160)}
+                  style={[StyleSheet.absoluteFillObject, { zIndex: 40 }]}
+                >
+                  <Pressable
+                    style={StyleSheet.absoluteFillObject}
+                    onPress={() => setShowConversationList(false)}
+                  >
+                    <BlurView
+                      tint="dark"
+                      intensity={34}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                  </Pressable>
+                </ReanimatedAnimated.View>
+              )}
+              <ReanimatedAnimated.View
+                entering={SlideInLeft.duration(280)}
+                exiting={SlideOutLeft.duration(200)}
+                style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 320, zIndex: 50 }}
+                className="bg-slate-900 border-r border-slate-800"
+              >
                 <SafeAreaView className="flex-1" edges={['top']}>
                   <View className="flex-row items-center justify-between p-4 border-b border-slate-800">
                     <Text className="text-white font-bold text-lg">Conversaciones</Text>
-                    <TouchableOpacity onPress={() => setShowConversationList(false)}>
+                    <Pressable
+                      onPress={() => {
+                        if (Platform.OS !== 'web') {
+                          void Haptics.selectionAsync();
+                        }
+                        setShowConversationList(false);
+                      }}
+                      hitSlop={12}
+                      className="p-1 rounded-lg active:bg-white/10"
+                    >
                       <X size={24} color="white" />
-                    </TouchableOpacity>
+                    </Pressable>
                   </View>
                   <ConversationList
                     conversations={conversations}
@@ -437,7 +556,7 @@ export default function AIChatScreen() {
                     onDeleteConversation={handleDeleteConversation}
                   />
                 </SafeAreaView>
-              </View>
+              </ReanimatedAnimated.View>
             </>
           )}
 

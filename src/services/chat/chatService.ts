@@ -18,6 +18,66 @@ let messageListeners: Map<string, Set<(message: ChatMessage) => void>> = new Map
 let connectionStatus: ChatConnectionStatus = 'connected';
 let connectionStatusListeners: Set<(status: ChatConnectionStatus) => void> = new Set();
 
+/** Peticiones IA en curso por conversación (soporta solapamiento con refcount). Persiste entre desmontajes de pantalla. */
+const pendingAiByConversation = new Map<string, number>();
+const aiPendingListeners = new Set<() => void>();
+
+function notifyAiPendingListeners() {
+  aiPendingListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      /* noop */
+    }
+  });
+}
+
+/** Unifica mensajes del storage con los que ya hay en React (evita que una carga tardía borre el mensaje del usuario). */
+export function mergeChatMessagesById(
+  previous: ChatMessage[],
+  fromStorage: ChatMessage[]
+): ChatMessage[] {
+  const map = new Map<string, ChatMessage>();
+  for (const m of fromStorage) {
+    map.set(m.id, m);
+  }
+  for (const m of previous) {
+    if (!map.has(m.id)) {
+      map.set(m.id, m);
+    }
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+}
+
+export function isAwaitingAiResponse(conversationId: string): boolean {
+  return (pendingAiByConversation.get(String(conversationId)) ?? 0) > 0;
+}
+
+/** Suscripción para repintar la UI del chat cuando cambia el estado “IA generando” (sigues en otra pantalla y vuelves). */
+export function subscribeAiPending(callback: () => void): () => void {
+  aiPendingListeners.add(callback);
+  return () => aiPendingListeners.delete(callback);
+}
+
+function markAiRequestStart(conversationId: string) {
+  const k = String(conversationId);
+  pendingAiByConversation.set(k, (pendingAiByConversation.get(k) ?? 0) + 1);
+  notifyAiPendingListeners();
+}
+
+function markAiRequestEnd(conversationId: string) {
+  const k = String(conversationId);
+  const n = (pendingAiByConversation.get(k) ?? 1) - 1;
+  if (n <= 0) {
+    pendingAiByConversation.delete(k);
+  } else {
+    pendingAiByConversation.set(k, n);
+  }
+  notifyAiPendingListeners();
+}
+
 /**
  * Get all conversations
  */
@@ -187,6 +247,30 @@ export async function addMessage(
 }
 
 /**
+ * Actualiza texto de un mensaje existente (p. ej. streaming de la IA) y notifica a la UI.
+ */
+export async function updateMessage(
+  conversationId: string,
+  messageId: string,
+  text: string
+): Promise<void> {
+  const messages = await getMessages(conversationId);
+  const idx = messages.findIndex((m) => m.id === messageId);
+  if (idx === -1) return;
+
+  const updated: ChatMessage = {
+    ...messages[idx],
+    text,
+  };
+  messages[idx] = updated;
+  await storage.setItem(
+    `${MESSAGES_STORAGE_PREFIX}${conversationId}`,
+    JSON.stringify(messages)
+  );
+  notifyMessageListeners(conversationId, updated);
+}
+
+/**
  * Set current conversation (for real-time updates and persistence)
  */
 export async function setCurrentConversation(conversationId: string | null): Promise<void> {
@@ -306,9 +390,94 @@ export function getConnectionStatus(): ChatConnectionStatus {
   return connectionStatus;
 }
 
+async function fetchChatStreamNdjson(
+  url: string,
+  token: string,
+  body: object,
+  onChunkText: (cumulative: string) => Promise<void>,
+  signal?: AbortSignal
+): Promise<{ doneData?: { data?: Record<string, unknown> } }> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  if (!response.ok) {
+    let detail = `${response.status}`;
+    try {
+      const j = await response.json();
+      const m = j?.message ?? j?.data?.message;
+      detail = typeof m === 'string' ? m : detail;
+    } catch {
+      try {
+        detail = await response.text();
+      } catch {
+        /* noop */
+      }
+    }
+    throw new Error(detail || `HTTP ${response.status}`);
+  }
+
+  const out: { doneData?: { data?: Record<string, unknown> } } = {};
+  const streamBody = response.body;
+  if (!streamBody?.getReader) {
+    throw new Error('Tu dispositivo no expone el cuerpo de la respuesta en streaming.');
+  }
+
+  const reader = streamBody.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t) continue;
+      let ev: { type?: string; text?: string; message?: string; data?: Record<string, unknown> };
+      try {
+        ev = JSON.parse(t) as typeof ev;
+      } catch {
+        continue;
+      }
+      if (ev.type === 'chunk' && typeof ev.text === 'string') {
+        await onChunkText(ev.text);
+      } else if (ev.type === 'error') {
+        throw new Error(
+          typeof ev.message === 'string' ? ev.message : 'Error en la respuesta del servidor'
+        );
+      } else if (ev.type === 'done') {
+        out.doneData = { data: ev.data } as { data?: Record<string, unknown> };
+      }
+    }
+  }
+
+  const tail = buffer.trim();
+  if (tail) {
+    try {
+      const ev = JSON.parse(tail) as { type?: string; data?: Record<string, unknown> };
+      if (ev.type === 'done') {
+        out.doneData = { data: ev.data };
+      }
+    } catch {
+      /* noop */
+    }
+  }
+
+  return out;
+}
+
 /**
- * Send a message to the AI agent.
- * If signal is provided and the request is aborted (e.g. user left the chat), no error message is added to the conversation.
+ * Envía al agente IA. Usa POST /chat/message/stream (texto en tiempo real); ante fallo usa POST /chat/message.
  */
 export async function sendMessage(
   conversationId: string,
@@ -325,48 +494,11 @@ export async function sendMessage(
 
   await addMessage(conversationId, text, 'user', contextItemIds);
 
-  // El estado siempre es 'connected' - no cambiamos a 'connecting' porque no hay conexión persistente
-  // Solo mostramos 'error' si hay un problema real
+  markAiRequestStart(conversationId);
 
-  try {
-    const token = await storage.getItem('userToken');
+  const placeholderAi = await addMessage(conversationId, '\u200b', 'ai');
 
-    if (!token) {
-      setConnectionStatus('error');
-      throw new Error('No autenticado');
-    }
-
-    const response = await axios.post(
-      getBackendEndpoint('/chat/message'),
-      {
-        message: text,
-        conversationId,
-        currentTitle,
-        contextItems: contextItemsForChat,
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 70000,
-        signal
-      }
-    );
-
-    // Mantener estado connected
-    setConnectionStatus('connected');
-
-    const rawAiResponse = response.data?.data?.response;
-    const aiResponseText =
-      typeof rawAiResponse === 'string' ? rawAiResponse.trim() : '';
-    if (!aiResponseText) {
-      throw new Error('El agente IA devolvió una respuesta vacía.');
-    }
-    const suggestedTitle = response.data?.data?.suggestedTitle;
-
-    const aiMessage = await addMessage(conversationId, aiResponseText, 'ai');
-
+  const applySuggestedTitle = async (suggestedTitle: unknown) => {
     if (typeof suggestedTitle === 'string' && suggestedTitle.trim().length > 0) {
       const conversations = await getConversations();
       const currentConversation = conversations.find(c => c.id === conversationId);
@@ -378,32 +510,126 @@ export async function sendMessage(
         await updateConversation(conversationId, { title: suggestedTitle.trim() });
       }
     }
+  };
 
-    return aiMessage;
+  try {
+    const token = await storage.getItem('userToken');
+
+    if (!token) {
+      setConnectionStatus('error');
+      throw new Error('No autenticado');
+    }
+
+    let lastAiText = '';
+    try {
+      const streamUrl = getBackendEndpoint('/chat/message/stream');
+      const done = await fetchChatStreamNdjson(
+        streamUrl,
+        token,
+        {
+          message: text,
+          conversationId,
+          currentTitle,
+          contextItems: contextItemsForChat,
+        },
+        async (cumulative) => {
+          lastAiText = cumulative;
+          await updateMessage(conversationId, placeholderAi.id, cumulative);
+        },
+        signal
+      );
+
+      setConnectionStatus('connected');
+
+      const data = done.doneData?.data as Record<string, unknown> | undefined;
+      const finalResponse =
+        typeof data?.response === 'string' ? data.response.trim() : lastAiText.trim();
+
+      if (!finalResponse) {
+        throw new Error('El agente IA devolvió una respuesta vacía.');
+      }
+
+      if (finalResponse !== lastAiText) {
+        await updateMessage(conversationId, placeholderAi.id, finalResponse);
+      }
+
+      await applySuggestedTitle(data?.suggestedTitle);
+
+      const messagesAfter = await getMessages(conversationId);
+      const finalMsg = messagesAfter.find(m => m.id === placeholderAi.id);
+      if (finalMsg) {
+        return finalMsg;
+      }
+      return {
+        id: placeholderAi.id,
+        text: finalResponse,
+        sender: 'ai' as const,
+        timestamp: placeholderAi.timestamp,
+        conversationId,
+      };
+    } catch (streamErr: unknown) {
+      console.warn('Stream chat falló, usando POST clásico:', streamErr);
+      const response = await axios.post(
+        getBackendEndpoint('/chat/message'),
+        {
+          message: text,
+          conversationId,
+          currentTitle,
+          contextItems: contextItemsForChat,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 70000,
+          signal,
+        }
+      );
+
+      setConnectionStatus('connected');
+
+      const rawAiResponse = response.data?.data?.response;
+      const aiResponseText =
+        typeof rawAiResponse === 'string' ? rawAiResponse.trim() : '';
+      if (!aiResponseText) {
+        throw new Error('El agente IA devolvió una respuesta vacía.');
+      }
+
+      await updateMessage(conversationId, placeholderAi.id, aiResponseText);
+      await applySuggestedTitle(response.data?.data?.suggestedTitle);
+
+      const messagesAfter = await getMessages(conversationId);
+      const finalMsg = messagesAfter.find(m => m.id === placeholderAi.id);
+      if (finalMsg) {
+        return finalMsg;
+      }
+      return {
+        id: placeholderAi.id,
+        text: aiResponseText,
+        sender: 'ai' as const,
+        timestamp: placeholderAi.timestamp,
+        conversationId,
+      };
+    }
   } catch (error: any) {
     const isAborted =
-      error.code === 'ERR_CANCELED' ||
-      error.name === 'AbortError' ||
-      error.name === 'CanceledError' ||
-      axios.isCancel?.(error);
+      error?.name === 'AbortError' ||
+      error?.name === 'CanceledError';
 
     if (isAborted) {
-      console.log('📤 Envío cancelado (usuario salió o cambió de conversación)');
-      // Mantener connected si fue cancelado por el usuario
+      console.log('📤 Envío cancelado');
       setConnectionStatus('connected');
       throw error;
     }
 
     console.error('❌ Error sending message to AI agent:', error);
 
-    // Solo marcar como error si es un error de conexión real
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
       setConnectionStatus('error');
     } else if (error.request && !error.response) {
-      // Error de red
       setConnectionStatus('error');
     } else {
-      // Error del servidor pero la conexión funciona
       setConnectionStatus('connected');
     }
 
@@ -425,7 +651,23 @@ export async function sendMessage(
       errorMessage = error.message || 'Error desconocido';
     }
 
-    const aiMessage = await addMessage(conversationId, `Error: ${errorMessage}`, 'ai');
-    return aiMessage;
+    await updateMessage(
+      conversationId,
+      placeholderAi.id,
+      `Error: ${errorMessage}`
+    );
+    const msgsFinal = await getMessages(conversationId);
+    const errBubble = msgsFinal.find(m => m.id === placeholderAi.id);
+    return (
+      errBubble ?? {
+        id: placeholderAi.id,
+        text: `Error: ${errorMessage}`,
+        sender: 'ai' as const,
+        timestamp: placeholderAi.timestamp,
+        conversationId,
+      }
+    );
+  } finally {
+    markAiRequestEnd(conversationId);
   }
 }

@@ -395,7 +395,7 @@ function normalizeArtisticPayload(raw: Record<string, unknown> | null | undefine
     description:
       typeof raw?.description === 'string'
         ? raw.description
-        : 'Tu análisis de personalidad se está generando...',
+        : 'Tu análisis IA se está generando...',
     recommendations: rec.filter((x): x is string => typeof x === 'string'),
     genreRecommendations: normalizeGenreRecommendations(raw?.genreRecommendations),
     suggestedWorks: suggestedWorks.length > 0 ? suggestedWorks : undefined,
@@ -434,21 +434,13 @@ export type PersonalizedFeedCuratedPayload = {
   webSearchUsed?: boolean;
   reason?: string;
   cached?: boolean;
-  /** Respuesta rápida mientras el servidor termina la curación completa en segundo plano */
-  partial?: boolean;
-  refreshing?: boolean;
-  source?: string;
 };
-
-const PARTIAL_FEED_CACHE_MS = 4_000;
 
 export async function fetchPersonalizedFeedCurated(options?: {
   force?: boolean;
   anchorsOnly?: boolean;
   preferFavorites?: boolean;
   userId?: string;
-  /** Ignora caché en memoria (útil para reintentos tras respuesta partial del servidor). */
-  noCache?: boolean;
 }): Promise<PersonalizedFeedCuratedPayload> {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
@@ -467,7 +459,7 @@ export async function fetchPersonalizedFeedCurated(options?: {
     }
   }
   const cacheKey = `personalizedFeed:${cacheUserId || 'anon'}:${options?.force ? 1 : 0}:${options?.anchorsOnly ? 1 : 0}:${options?.preferFavorites ? 1 : 0}`;
-  if (options?.force || options?.noCache) {
+  if (options?.force) {
     cache.delete(cacheKey);
   } else {
     const cached = cache.get<PersonalizedFeedCuratedPayload>(cacheKey);
@@ -488,8 +480,10 @@ export async function fetchPersonalizedFeedCurated(options?: {
   if (!Array.isArray(payload.items)) {
     return { ...payload, items: [] };
   }
-  const baseTtl = options?.anchorsOnly ? CACHE_TTL.personalizedFeedAnchors : CACHE_TTL.personalizedFeed;
-  const ttl = payload.partial ? PARTIAL_FEED_CACHE_MS : baseTtl;
-  cache.set(cacheKey, payload, ttl);
+  cache.set(
+    cacheKey,
+    payload,
+    options?.anchorsOnly ? CACHE_TTL.personalizedFeedAnchors : CACHE_TTL.personalizedFeed
+  );
   return payload;
 }
