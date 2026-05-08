@@ -47,7 +47,13 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
 export const deleteAccount = async () => {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
+export const deleteAccount = async () => {
+  const token = await getAuthToken();
+  if (!token) throw new Error('Not authenticated');
 
+  const response = await axios.delete(getBackendEndpoint('/users/delete'));
+  return response.data;
+};
   const response = await axios.delete(getBackendEndpoint('/users/delete'));
   return response.data;
 };
