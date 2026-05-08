@@ -57,15 +57,7 @@ export function NavigationBar({
                   <Text className="text-xs font-medium text-slate-300">Cancelar</Text>
                 </TouchableOpacity>
               ) : null}
-              {user && showLogout ? (
-                <TouchableOpacity 
-                  onPress={handleLogout} 
-                  className="flex-row items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5"
-                >
-                  <LogOut size={12} color="#ef4444" />
-                  <Text className="text-red-400 font-medium text-xs">Salir</Text>
-                </TouchableOpacity>
-              ) : null}
+              
             </View>
           )}
         </View>
@@ -94,17 +86,7 @@ export function NavigationBar({
         </TouchableOpacity>
       )}
       
-      {user && (
-        <View className="flex-row items-center gap-2">
-          <TouchableOpacity 
-            onPress={handleLogout} 
-            className="bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 flex-row items-center gap-1.5"
-          >
-            <LogOut size={12} color="#ef4444" />
-            <Text className="text-red-400 font-medium text-xs">Salir</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      
     </View>
   );
 }
