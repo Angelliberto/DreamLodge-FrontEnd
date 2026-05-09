@@ -61,14 +61,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const subscription = Linking.addEventListener('url', (event) => {
       const { url } = event;
       
-      if (url && url.includes('dreamlodgefrontend://auth')) {
+      if (url && url.includes('dreamlodgefrontend:///')) {
         handleDeepLinkAuth(url);
       }
     });
 
     // Check if app was opened via deep link
     Linking.getInitialURL().then((url) => {
-      if (url && url.includes('dreamlodgefrontend://auth')) {
+      if (url && url.includes('dreamlodgefrontend:///')) {
         handleDeepLinkAuth(url);
       }
     }).catch(() => {
@@ -233,7 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         // For mobile, use WebBrowser.openAuthSessionAsync
         // This opens the system browser which Google accepts (not a WebView)
-        const redirectUri = Linking.createURL('auth', { scheme: 'dreamlodgefrontend' });
+        const redirectUri = Linking.createURL('/', { scheme: 'dreamlodgefrontend' });
         const authUrl = getBackendEndpoint(`/users/google?redirect_uri=${encodeURIComponent(redirectUri)}`);
 
         try {
