@@ -52,240 +52,240 @@ export function orderedDimensionKeys(dimensions: Record<string, number>): string
 
 /** Etiquetas y descripciones breves para las facetas AB5C/IPIP (test profundo). */
 export const SUBFACET_INFO: Record<string, { label: string; descripcion: string }> = {
-  // Factor I — Extraversión (diferenciar multitudes vs compañía, hablar vs contar cosas personales, etc.)
+  // Factor I — Extraversión
   gregariousness: {
-    label: 'Ambientes con mucha gente',
+    label: 'Disfrute de sitios con mucha gente',
     descripcion:
-      'Te activa o te gusta el bullicio: fiestas, eventos, sitios llenos. No mide si necesitas ver a alguien a menudo (véase “Buscar compañía a menudo”) ni cuánto hablas: puedes ir a un concierto y hablar poco.'
+      'Te gusta estar en lugares con mucha gente, como fiestas o eventos llenos. Mide si te sientes a gusto entre multitudes, no cuánto hablas ni si necesitas ver a la gente a menudo.'
   },
   friendliness: {
-    label: 'Cercanía al iniciar contacto',
+    label: 'Cercanía al conocer gente',
     descripcion:
-      'Das impresión de accesible y amable cuando conoces gente: tono abierto, facilidad para el primer “hola”. En amabilidad hay “calidez” más ligada a acogida emocional; aquí es estilo social al relacionarte.'
+      'Cuando conoces a alguien resultas accesible y amable: saludas con facilidad y te muestras abierto desde el primer momento.'
   },
   assertiveness: {
-    label: 'Decir lo que piensas con firmeza',
+    label: 'Firmeza al expresar opiniones',
     descripcion:
-      'Expresas opiniones y límites sin titubeo excesivo; no te dejas apartar del debate fácilmente. No implica dirigir al grupo (véase “Dirigir en grupo”): puedes defender tu postura sin coordinar a los demás.'
+      'Dices lo que piensas y defiendes tu postura sin titubear demasiado, aunque haya desacuerdo.'
   },
   poise: {
-    label: 'Comodidad en contextos sociales nuevos',
+    label: 'Seguridad en situaciones nuevas',
     descripcion:
-      'Te sientes relativamente seguro cuando no conoces a casi nadie o el entorno es nuevo; menos bloqueo o vergüenza inicial.'
+      'Te sientes cómodo en sitios o grupos que no conoces; no te bloqueas ni te avergüenzas con facilidad.'
   },
   leadership: {
-    label: 'Dirigir en grupo',
+    label: 'Iniciativa para liderar el grupo',
     descripcion:
-      'Tomas iniciativa para encauzar decisiones, repartir cosas o proponer el plan cuando hay varios; la mirada del grupo a veces cae en ti.'
+      'Tomas la iniciativa para organizar planes, repartir tareas o guiar decisiones cuando hay varias personas.'
   },
   provocativeness: {
-    label: 'Debate y confrontación directa',
+    label: 'Tendencia al debate y la confrontación',
     descripcion:
-      'No evitas el choque de ideas: puedes contradecir, pinchar o mantener tensión dialéctica.'
+      'No te incomoda discutir ni llevar la contraria. Disfrutas del intercambio de ideas aunque suba el tono.'
   },
   self_disclosure: {
-    label: 'Compartir lo personal',
+    label: 'Apertura para hablar de lo personal',
     descripcion:
-      'Cuentas emociones, experiencias íntimas u opiniones personales con relativa facilidad.'
+      'Compartes con facilidad cosas íntimas: emociones, experiencias o pensamientos privados.'
   },
   talkativeness: {
-    label: 'Mucho hablar en la conversación',
+    label: 'Cantidad de tiempo hablando',
     descripcion:
-      'Ocupas buena parte del tiempo de palabra; intervenciones largas o frecuentes. No mide el contenido (personal o no): es cantidad y protagonismo verbal.'
+      'Hablas mucho durante una conversación: tus intervenciones son largas o frecuentes. Mide cuánto hablas, no de qué.'
   },
   sociability: {
-    label: 'Buscar compañía a menudo',
+    label: 'Necesidad de compañía',
     descripcion:
-      'Necesitas contacto social recurrente para sentirte bien; la soledad prolongada te pesa.'
+      'Necesitas estar con gente con cierta frecuencia para sentirte bien. Pasar mucho tiempo solo te pesa.'
   },
-  // Factor II — Amabilidad (diferenciar escuchar vs anticipar, calidez vs ternura, compasión vs cuidado activo)
+  // Factor II — Amabilidad
   understanding: {
-    label: 'Escuchar y respetar lo ajeno',
+    label: 'Escucha atenta a los demás',
     descripcion:
-      'Prestas atención de verdad a lo que siente o le importa al otro; evitas restar importancia o juzgar en frío.'
+      'Prestas atención real a lo que el otro siente o piensa, sin restarle importancia ni juzgar a la ligera.'
   },
   warmth: {
-    label: 'Hacer sentir bienvenido',
+    label: 'Acogida hacia los demás',
     descripcion:
-      'Transmites acogida con tono, gestos o ambiente: la otra persona se siente a gusto al llegar.'
+      'Haces que la gente se sienta bienvenida con tu trato, tu tono y tus gestos.'
   },
   morality: {
-    label: 'Honestidad y rectitud',
+    label: 'Honestidad y juego limpio',
     descripcion:
-      'Cumples normas y acuerdos aunque nadie te vigile; te incomoda actuar con trampas o deslealtad.'
+      'Cumples las normas y acuerdos aunque nadie te esté vigilando. Te incomoda actuar con trampas o engaños.'
   },
   pleasantness: {
-    label: 'Poca dureza al criticar',
+    label: 'Suavidad al criticar',
     descripcion:
-      'Evitas ataques personales o juicios hirientes; concedes segundas oportunidades al error ajeno.'
+      'Evitas las críticas hirientes o los ataques personales. Das margen al error ajeno.'
   },
   empathy: {
-    label: 'Captar lo que el otro necesita',
+    label: 'Captar las necesidades del otro',
     descripcion:
-      'Intuyes estados de ánimo o necesidades antes de que te lo detallen; ajustas el trato.'
+      'Te das cuenta de cómo se siente o qué necesita la otra persona sin que tenga que explicártelo, y adaptas tu trato.'
   },
   cooperation: {
-    label: 'Acordar en lugar de imponer',
+    label: 'Preferencia por el acuerdo',
     descripcion:
-      'Prefieres consenso, reparto equitativo o ceder un poco antes que arrasar con tu criterio. No es lo mismo que “Honestidad y rectitud”: puedes cooperar en un plan sin tocar temas morales.'
+      'Prefieres llegar a acuerdos y ceder un poco antes que imponer tu criterio o competir.'
   },
   sympathy: {
-    label: 'Conmoverte por el sufrimiento',
+    label: 'Compasión ante el sufrimiento',
     descripcion:
-      'El dolor ajeno te afecta y te mueve a consolar o acompañar emocionalmente.'
+      'El dolor ajeno te afecta y sientes el impulso de consolar o acompañar emocionalmente.'
   },
   tenderness: {
-    label: 'Cariño en el trato',
+    label: 'Cariño y afecto en el trato',
     descripcion:
-      'Muestras afecto con palabras o gestos suaves, mimos, delicadeza. Más íntimo que “Hacer sentir bienvenido”: la ternura implica vínculo afectivo explícito.'
+      'Muestras cariño con gestos suaves, palabras dulces o detalles. Implica un vínculo afectivo cercano.'
   },
   nurturance: {
-    label: 'Cuidar y proteger activamente',
+    label: 'Cuidado activo de los demás',
     descripcion:
-      'Impulso a velar por el bienestar del otro de forma concreta: ayudar, cubrir necesidades, estar pendiente.'
+      'Te preocupas por el bienestar de la gente a tu alrededor y actúas para ayudar, proteger o estar pendiente.'
   },
-  // Factor III — Meticulosidad / responsabilidad (diferenciar deber vs promesa, eficiencia vs detalle, orden físico vs seguimiento de tarea)
+  // Factor III — Meticulosidad
   conscientiousness: {
-    label: 'Fiabilidad en lo prometido',
+    label: 'Cumplir lo prometido',
     descripcion:
-      'Cumples lo que te comprometes con otros o contigo; constancia en obligaciones asumidas.'
+      'Cumples con lo que te comprometes, contigo y con los demás. Eres constante con tus obligaciones.'
   },
   efficiency: {
-    label: 'Uso ordenado del tiempo y los pasos',
+    label: 'Buen uso del tiempo',
     descripcion:
-      'Planificas, evitas perder tiempo y encadenas pasos con sentido para terminar sin caos.'
+      'Planificas, no pierdes tiempo y organizas los pasos para terminar las cosas sin caos.'
   },
   dutifulness: {
-    label: 'Sentido del deber y las normas',
+    label: 'Sentido del deber',
     descripcion:
-      'Las obligaciones formales, éticas o de equipo te pesan; incumplir reglas o deberes te genera malestar.'
+      'Te tomas en serio las obligaciones y las normas. Incumplir reglas o compromisos te genera malestar.'
   },
   purposefulness: {
-    label: 'Llegar hasta el final',
+    label: 'Constancia hasta acabar',
     descripcion:
-      'Persistes hasta cerrar lo empezado; te cuesta dejar cosas a medias aunque cueste.'
+      'Sigues hasta terminar lo que empiezas. Te cuesta dejar cosas a medias aunque se compliquen.'
   },
   organization: {
-    label: 'Detalle y calidad del trabajo',
+    label: 'Cuidado por el detalle',
     descripcion:
-      'Revisas que el resultado esté bien hecho, sigues el plan con mimo, controlas calidad.'
+      'Revisas el trabajo, sigues el plan con cuidado y te aseguras de que el resultado esté bien hecho.'
   },
   cautiousness: {
-    label: 'Pausa ante riesgos',
+    label: 'Prudencia ante el riesgo',
     descripcion:
-      'No te lanzas a lo loco; valoras antes consecuencias y riesgos.'
+      'No te lanzas a la ligera. Antes de actuar valoras las consecuencias y los posibles riesgos.'
   },
   rationality: {
-    label: 'Razonar con lógica y pasos',
+    label: 'Decidir con lógica',
     descripcion:
-      'Te gusta estructurar pros/contras, listas o argumentos claros al decidir. No mide si eres arriesgado o prudente: es forma de pensar, no tolerancia al riesgo.'
+      'Al decidir, te apoyas en argumentos claros, listas o pros y contras. Mide cómo piensas, no si eres prudente.'
   },
   perfectionism: {
-    label: 'Exigencia máxima con el resultado',
+    label: 'Exigencia con el resultado',
     descripcion:
-      'Te cuesta dar por bueno “suficientemente bien”; buscas un nivel alto o impecable.'
+      'No te conformas con un trabajo aceptable. Buscas que el resultado quede a un nivel alto o impecable.'
   },
   orderliness: {
-    label: 'Orden físico y rutinas claras',
+    label: 'Orden y rutinas',
     descripcion:
-      'Lugares ordenados, horarios predecibles, procedimientos que repites.'
+      'Te gusta tener las cosas ordenadas, los horarios claros y los procedimientos repetibles.'
   },
-  // Factor IV (AB5C): puntuación en dirección neuroticismo. Etiquetas orientadas al usuario (qué mide cada faceta).
+  // Factor IV — Neuroticismo
   stability: {
     label: 'Cambios de humor bruscos',
     descripcion:
-      'Pasas rápido de un estado emocional a otro (por ejemplo de calma a enfado o tristeza) sin transición suave. No mide si te sientes “feliz todo el día”, sino si el humor da saltos.'
+      'Pasas rápido de un estado emocional a otro (de la calma al enfado o a la tristeza) sin una transición suave.'
   },
   happiness: {
-    label: 'Tristeza y bajón de ánimo',
+    label: 'Tendencia a la tristeza',
     descripcion:
-      'Sensación frecuente de melancolía, vacío o falta de energía positiva; te cuesta mantener un tono animado estable. Se diferencia del humor que “va y viene” en el día (véase “Altibajos durante el día”).'
+      'Sientes con frecuencia tristeza, vacío o falta de ánimo, y te cuesta mantener un estado positivo estable.'
   },
   calmness: {
-    label: 'Enfado fácil (irritabilidad)',
+    label: 'Irritabilidad',
     descripcion:
-      'Cosas pequeñas te molestan o tensan; te cuesta conservar la calma en discusiones o contratiempos cotidianos. Es reacción a estímulos externos, no tanto la intensidad interna de la emoción.'
+      'Las cosas pequeñas te molestan o te tensan con facilidad y te cuesta mantener la calma en discusiones cotidianas.'
   },
   moderation: {
-    label: 'Impulsos difíciles de frenar',
+    label: 'Control de los impulsos',
     descripcion:
-      'Hacer o decidir en caliente por un deseo o impulso del momento (comer, gastar, cambiar de plan) sin pararte a pensar. No es solo “hablar sin filtro”; aquí el foco es conductas y deseos.'
+      'Te cuesta frenar deseos del momento como comer, gastar o cambiar de plan, y actúas sin pararte a pensar.'
   },
   toughness: {
-    label: 'Sobrepaso ante presión o crítica',
+    label: 'Sensibilidad al estrés',
     descripcion:
-      'Cuando hay plazos ajustados, críticas o golpes inesperados, sientes que te afectan mucho o te bloquean. Mide fragilidad ante el estrés externo, no el mal genio cotidiano.'
+      'La presión, las críticas o los imprevistos te afectan mucho o llegan a bloquearte.'
   },
   impulse_control: {
-    label: 'Reaccionar sin pensar (palabras y emoción)',
+    label: 'Reacciones impulsivas',
     descripcion:
-      'Decir o exteriorizar en caliente lo que sientes antes de mediar; arrepentirte después de cómo reaccionaste.'
+      'Reaccionas en caliente, dices o haces cosas sin pensarlo y luego te arrepientes.'
   },
   imperturbability: {
-    label: 'Emociones muy intensas o abrumadoras',
+    label: 'Intensidad emocional',
     descripcion:
-      'Las emociones te llegan con mucha fuerza y cuesta bajar la intensidad; puedes sentir que te “inundan”. No es solo irritarte por algo concreto, sino la magnitud de lo que sientes por dentro.'
+      'Las emociones te llegan con mucha fuerza y te cuesta bajar su intensidad. A veces sientes que te desbordan.'
   },
   cool_headedness: {
-    label: 'Poca serenidad cuando hay tensión',
+    label: 'Serenidad bajo presión',
     descripcion:
-      'En discusiones, urgencias o conflictos actúas o decides de forma precipitada en lugar de parar a valorar. Se parece a “Reaccionar sin pensar (palabras y emoción)”, pero solo en contextos de presión o confrontación.'
+      'En conflictos o urgencias actúas de forma precipitada, sin parar a valorar la situación con calma.'
   },
   tranquility: {
-    label: 'Altibajos durante el día',
+    label: 'Altibajos a lo largo del día',
     descripcion:
-      'Tu estado de ánimo sube y baja muchas veces a lo largo del día aunque no haya un “disparador” claro.'
+      'Tu estado de ánimo sube y baja varias veces durante el día sin un motivo claro.'
   },
-  // Factor V — Apertura: distinguir ingenio (estrategias raras) vs creatividad (muchas soluciones) vs imaginación (fantasía).
+  // Factor V — Apertura
   intellect: {
-    label: 'Ideas abstractas y análisis',
+    label: 'Gusto por las ideas abstractas',
     descripcion:
-      'Te atraen conceptos teóricos, debates complejos y vocabulario preciso; disfrutas razonar sobre “el porqué” de las cosas. No mide tanto la fantasía ni soluciones prácticas raras, sino el gusto por lo intelectual.'
+      'Te atraen los conceptos teóricos, los debates complejos y razonar sobre el porqué de las cosas.'
   },
   ingenuity: {
-    label: 'Ingenio (enfoques poco obvios)',
+    label: 'Ingenio para resolver problemas',
     descripcion:
-      'Se te ocurren maneras poco habituales de encarar un problema o una tarea: atajos, analogías raras o planes que otros no habrían probado. No es generar muchas ideas sueltas (creatividad) ni imaginar escenas (imaginación), sino originalidad aplicada a “cómo lo resuelvo”.'
+      'Se te ocurren formas poco habituales de afrontar un problema: atajos, soluciones inesperadas o enfoques originales.'
   },
   reflection: {
-    label: 'Contemplación y sensibilidad estética',
+    label: 'Sensibilidad estética',
     descripcion:
-      'Te detienes a apreciar belleza, atmósfera o profundidad en lo cotidiano (arte, naturaleza, momentos).'
+      'Te detienes a apreciar la belleza, la atmósfera o lo profundo de lo cotidiano: arte, naturaleza, momentos.'
   },
   competence: {
     label: 'Capacidad de aprender y aplicar',
     descripcion:
-      'Asimilas contenidos nuevos y los usas bien en la práctica; sensación de “sé hacer esto”.'
+      'Aprendes cosas nuevas con facilidad y las aplicas bien en la práctica.'
   },
   quickness: {
-    label: 'Rapidez al entender',
+    label: 'Rapidez de comprensión',
     descripcion:
-      'Captas ideas o información compleja con poco esfuerzo aparente; necesitas menos tiempo que la media para “pillarlo”. No mide si luego lo aplicas bien (véase “Capacidad de aprender y aplicar”).'
+      'Entiendes ideas o información compleja sin demasiado esfuerzo y más rápido que la media.'
   },
   introspection: {
-    label: 'Mirar hacia dentro',
+    label: 'Autoconocimiento',
     descripcion:
-      'Observas tus pensamientos, motivos y reacciones con atención.'
+      'Observas con atención tus pensamientos, motivos y reacciones para entenderte mejor.'
   },
   creativity: {
-    label: 'Creatividad (varias soluciones)',
+    label: 'Generación de ideas variadas',
     descripcion:
-      'Ante un mismo reto se te ocurren varias alternativas o combinaciones inusuales; pensamiento divergente útil.'
+      'Ante un mismo reto se te ocurren varias alternativas o combinaciones diferentes para resolverlo.'
   },
   imagination: {
     label: 'Imaginación y fantasía',
     descripcion:
-      'Mundo interior rico en imágenes, historias o posibilidades “como si”; imaginar escenarios vívidos aunque no vayan a ocurrir. No es lo mismo que idear soluciones prácticas (creatividad/ingenio): aquí predomina lo mental y lo ficticio.'
+      'Tienes un mundo interior rico en imágenes, historias o escenarios que imaginas con detalle, aunque no vayan a ocurrir.'
   },
   depth: {
-    label: 'Profundidad (ir más allá de la superficie)',
+    label: 'Búsqueda de profundidad',
     descripcion:
-      'Te interesa lo que hay detrás de lo evidente: simbolismo, causas ocultas, lecturas no literales.'
+      'Te interesa lo que hay detrás de lo evidente: el simbolismo, las causas ocultas o las lecturas no literales.'
   },
   mini_ipip: {
-    label: 'Mini-IPIP (test breve)',
+    label: 'Test breve (Mini-IPIP)',
     descripcion:
-      'En el test rápido no hay subfacetas separadas: varias preguntas resumen el rasgo con el inventario IPIP abreviado. Para ver nueve facetas por dimensión, haz el análisis profundo.'
+      'En el test rápido no se separan subfacetas: varias preguntas resumen cada rasgo. Para ver las nueve facetas por dimensión, haz el análisis profundo.'
   }
 };
 

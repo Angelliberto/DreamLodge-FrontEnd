@@ -29,6 +29,7 @@ export default function UnifiedFeedScreen() {
     query,
     setQuery,
     loading,
+    awaitingOceanFeed,
     searchLoading,
     refreshingFeed,
     hasSearched,
@@ -140,10 +141,14 @@ export default function UnifiedFeedScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 100 }}
         >
-          {loading ? (
+          {loading || awaitingOceanFeed ? (
             <View className="flex-1 justify-center items-center py-20">
               <ActivityIndicator size="large" color="#c084fc" />
-              <Text className="mt-4 text-slate-400">Cargando recomendaciones...</Text>
+              <Text className="mt-4 text-slate-400">
+                {awaitingOceanFeed && !loading
+                  ? 'Generando recomendaciones para ti…'
+                  : 'Cargando recomendaciones...'}
+              </Text>
             </View>
           ) : (
             <>

@@ -1,0 +1,16 @@
+{
+  "description": "Ítems IPIP (+/− por keying); respuestas 1–5 en ipip_accuracy_scale_es.json. La app guarda medias Likert 1–5 por rasgo/faceta (scoreMetric ipip_mean_1_5).",
+  "responseScale": "ipip_1_5",
+  "scoreMetric": "ipip_mean_1_5",
+  "negativeKeyedRule": "six_minus_R",
+  "banks": {
+    "easier_test.json": {
+      "description": "Mini-IPIP corto",
+      "items": 20
+    },
+    "questions_json.json": {
+      "description": "Versión AB5C / facetas para análisis profundo",
+      "itemsVariable": true
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Brain, Check, Star, User as UserIcon } from 'lucide-react-native';
+import { Brain, Check, Sparkles, Star, User as UserIcon } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -11,6 +11,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   ArtisticDescriptionPayload,
@@ -21,13 +22,19 @@ import {
 import { BottomNavigation } from '../src/components/BottomNavigation';
 import { NavigationBar } from '../src/components/NavigationBar';
 import { DimensionSelectorTabs } from '../src/components/test-results/DimensionSelectorTabs';
-import { GenreRecommendationsBlock } from '../src/components/test-results/GenreRecommendationsBlock';
 import { SelectedDimensionDetailsBlock } from '../src/components/test-results/SelectedDimensionDetailsBlock';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import {
   DIMENSION_NAMES,
   orderedDimensionKeys,
 } from '../src/constants/oceanTestCopy';
+import {
+  OCEAN_RESPONSE_SCALE,
+  OCEAN_SCORE_METRIC,
+  affineStored05ToLikertMean,
+  likertMeanToBarPercent,
+  type OceanScoreMetric,
+} from '../src/utils/oceanScoring';
 import { useAuth } from '../src/contexts/AuthContext';
 
 const DIMENSION_ICONS: Record<string, any> = {
@@ -38,15 +45,16 @@ const DIMENSION_ICONS: Record<string, any> = {
   neuroticism: Brain
 };
 
+/** Rangos cualitativos sobre media Likert 1–5 (IPIP / Mini-IPIP). */
 function getScoreLabel(score: number): { label: string; description: string } {
-  if (score >= 4.2) return { label: 'Alto', description: 'Tienes un nivel muy alto' };
-  if (score >= 3.5) return { label: 'Moderado-Alto', description: 'Tienes un nivel moderado-alto' };
-  if (score >= 2.5) return { label: 'Moderado', description: 'Tienes un nivel moderado' };
-  if (score >= 1.5) return { label: 'Bajo-Moderado', description: 'Tienes un nivel bajo-moderado' };
-  return { label: 'Bajo', description: 'Tienes un nivel bajo' };
+  if (score >= 4.25) return { label: 'Alto', description: 'Tienes una media alta en este rasgo' };
+  if (score >= 3.55) return { label: 'Moderado-Alto', description: 'Tienes una media moderadamente alta' };
+  if (score >= 2.75) return { label: 'Moderado', description: 'Tienes una media cercana al punto medio del 1–5' };
+  if (score >= 2.05) return { label: 'Bajo-Moderado', description: 'Tienes una media moderadamente baja' };
+  return { label: 'Bajo', description: 'Tienes una media baja en este rasgo' };
 }
 
-function normalizeLegacyScores(scores: any) {
+function normalizeLegacyScores(scores: any, scoreMetric: OceanScoreMetric) {
   const dimensions: Record<string, number> = {};
   const subfacets: Record<string, Record<string, number[]>> = {};
 
@@ -58,7 +66,10 @@ function normalizeLegacyScores(scores: any) {
     const scoreObj = scores[dimension];
     if (!scoreObj || typeof scoreObj.total !== 'number') return;
 
-    dimensions[dimension] = scoreObj.total;
+    dimensions[dimension] =
+      scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+        ? scoreObj.total
+        : affineStored05ToLikertMean(scoreObj.total);
     const facetKeys = Object.keys(scoreObj).filter(
       (key) => key !== 'total' && typeof scoreObj[key] === 'number'
     );
@@ -67,16 +78,120 @@ function normalizeLegacyScores(scores: any) {
 
     subfacets[dimension] = {};
     facetKeys.forEach((key) => {
-      const normalizedValue = scoreObj[key];
-      const originalValue = ((normalizedValue / 5) * 4) - 2;
-      subfacets[dimension][key] = [originalValue];
+      const stored = scoreObj[key];
+      const likertFacet =
+        scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+          ? stored
+          : affineStored05ToLikertMean(stored);
+      subfacets[dimension][key] = [likertFacet];
     });
   });
 
   return { dimensions, subfacets };
 }
 
+/** Parte el texto del modelo en bloques legibles (párrafos o frases largas). */
+function splitArtisticDescriptionText(text: string): string[] {
+  const trimmed = text?.trim();
+  if (!trimmed) return [];
+
+  const byParagraphs = trimmed.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
+  if (byParagraphs.length > 1) {
+    return byParagraphs.flatMap((p) => chunkLongParagraph(p));
+  }
+
+  const lines = trimmed.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  if (lines.length > 1) {
+    return lines.flatMap((p) => chunkLongParagraph(p));
+  }
+
+  return chunkLongParagraph(trimmed);
+}
+
+function chunkLongParagraph(text: string, maxLen = 420): string[] {
+  if (text.length <= maxLen) return [text];
+
+  const sentences = text.split(/(?<=[.!?¿¡])\s+/).filter(Boolean);
+  if (sentences.length <= 1) return [text];
+
+  const chunks: string[] = [];
+  let cur = '';
+  for (const s of sentences) {
+    const next = cur ? `${cur} ${s}` : s;
+    if (next.length > maxLen && cur) {
+      chunks.push(cur.trim());
+      cur = s;
+    } else {
+      cur = next;
+    }
+  }
+  if (cur) chunks.push(cur.trim());
+  return chunks.length ? chunks : [text];
+}
+
+function isBulletLine(line: string): boolean {
+  return /^\s*([•*-]|\d+[.)])\s/.test(line);
+}
+
+function stripBulletPrefix(line: string): string {
+  return line.replace(/^\s*([•*-]|\d+[.)])\s*/, '').trim();
+}
+
+function ArtisticDescriptionBody({ description }: { description: string }) {
+  const blocks = splitArtisticDescriptionText(description ?? '');
+  if (!blocks.length) return null;
+  return (
+    <>
+      {blocks.map((block, blockIndex) => {
+        const lines = block.includes('\n')
+          ? block.split(/\n/).map((l) => l.trim()).filter(Boolean)
+          : [block];
+
+        const hasBullets = lines.length > 1 && lines.some(isBulletLine);
+        if (hasBullets) {
+          return (
+            <View key={`b-${blockIndex}`} className="mb-5 gap-2.5">
+              {lines.map((line, j) =>
+                isBulletLine(line) ? (
+                  <View key={j} className="flex-row gap-3 pl-0.5">
+                    <Text className="pt-0.5 text-base text-purple-400">•</Text>
+                    <Text className="min-w-0 flex-1 text-[15px] leading-[24px] text-slate-200">
+                      {stripBulletPrefix(line)}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text key={j} className="text-[15px] leading-[24px] text-slate-200">
+                    {line}
+                  </Text>
+                )
+              )}
+            </View>
+          );
+        }
+
+        return (
+          <Text
+            key={`b-${blockIndex}`}
+            className="mb-5 text-[15px] leading-[24px] text-slate-200"
+          >
+            {block}
+          </Text>
+        );
+      })}
+    </>
+  );
+}
+
 function normalizeTestResult(rawResult: any) {
+  const responseScale =
+    rawResult?.responseScale === OCEAN_RESPONSE_SCALE.IPIP_1_5
+      ? OCEAN_RESPONSE_SCALE.IPIP_1_5
+      : OCEAN_RESPONSE_SCALE.LEGACY_NEG2_POS2;
+  const scoreMetric: OceanScoreMetric =
+    rawResult?.scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+      ? OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+      : OCEAN_SCORE_METRIC.DISPLAY_AFFINE_05;
+
   if (
     rawResult?.dimensions &&
     typeof rawResult.dimensions === 'object' &&
@@ -89,18 +204,22 @@ function normalizeTestResult(rawResult: any) {
     const normalized: any = {
       dimensions: rawResult.dimensions,
       testType: hasSubfacets ? 'deep' : rawResult.testType || 'quick',
-      timestamp: rawResult.timestamp || rawResult.updatedAt || rawResult.createdAt
+      timestamp: rawResult.timestamp || rawResult.updatedAt || rawResult.createdAt,
+      responseScale,
+      scoreMetric,
     };
     if (hasSubfacets) normalized.subfacets = rawResult.subfacets;
     return normalized;
   }
 
-  const { dimensions, subfacets } = normalizeLegacyScores(rawResult?.scores);
+  const { dimensions, subfacets } = normalizeLegacyScores(rawResult?.scores, scoreMetric);
   const hasLegacySubfacets = Object.keys(subfacets).length > 0;
   const normalized: any = {
     dimensions,
     testType: hasLegacySubfacets ? 'deep' : rawResult?.testType || 'quick',
-    timestamp: rawResult?.timestamp || rawResult?.updatedAt || rawResult?.createdAt
+    timestamp: rawResult?.timestamp || rawResult?.updatedAt || rawResult?.createdAt,
+    responseScale,
+    scoreMetric,
   };
   if (hasLegacySubfacets) normalized.subfacets = subfacets;
   return normalized;
@@ -152,12 +271,13 @@ export default function TestResultsScreen() {
       // If results are in params, use them
       if (params.results) {
         try {
-          const parsedResults = JSON.parse(params.results as string);
+          const parsedResults = normalizeTestResult(JSON.parse(params.results as string));
           setArtisticProfile(null);
           setResults(parsedResults);
-          // Tras completar el test: saveTestResults ya limpió caché y el análisis en BD — una sola generación en servidor
+          // Tras guardar el test en servidor: forzar regeneración de análisis + invalidación de feed en API (forceRegenerate).
           if (user?._id) {
-            generateArtisticDescriptionForUser(user._id, false);
+            const forceRegenerate = String(params.regenerateProfile || '') === '1';
+            generateArtisticDescriptionForUser(user._id, forceRegenerate);
           }
           return;
         } catch (error) {
@@ -216,7 +336,6 @@ export default function TestResultsScreen() {
     setSubfacetsShowAll(false);
   }, [selectedDimension]);
 
-  // Scores already come in 0-5 scale
   const normalizedDimensions: Record<string, number> = results.dimensions || {};
   const dimensionKeysInOrder = orderedDimensionKeys(normalizedDimensions);
 
@@ -322,39 +441,65 @@ export default function TestResultsScreen() {
             </View>
 
             {resultsView === 'artistic' && (
-            <View className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-800/90 p-6 shadow-xl">
-              <View className="mb-3 flex-row items-center gap-2">
-                {generatingDescription && (
-                  <ActivityIndicator size="small" color="#a855f7" />
-                )}
-                {artisticProfile && (
-                  <View className="rounded bg-purple-500/20 px-2 py-1">
-                    <Text className="text-xs font-semibold text-purple-400">IA</Text>
+            <View className="mb-6 overflow-hidden rounded-2xl border border-purple-500/20 bg-slate-900/80 shadow-xl">
+              <View className="border-b border-white/10 bg-violet-950/55 px-5 py-4">
+                <View className="flex-row items-center gap-3">
+                  <LinearGradient
+                    colors={['#7c3aed', '#9333ea']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    className="h-11 w-11 items-center justify-center rounded-xl"
+                  >
+                    <Sparkles size={22} color="#faf5ff" />
+                  </LinearGradient>
+                  <View className="min-w-0 flex-1">
+                    <View className="mb-1 flex-row flex-wrap items-center gap-2">
+                      {generatingDescription && (
+                        <ActivityIndicator size="small" color="#c4b5fd" />
+                      )}
+                      {artisticProfile ? (
+                        <View className="rounded-full border border-purple-400/40 bg-purple-500/25 px-2.5 py-1">
+                          <Text className="text-[11px] font-bold tracking-wide text-purple-100">
+                            IA
+                          </Text>
+                        </View>
+                      ) : null}
+                      <Text className="text-base font-semibold tracking-tight text-white">
+                        Análisis de personalidad
+                      </Text>
+                    </View>
+                    <Text className="text-xs leading-4 text-violet-200/85">
+                      Generado a partir de tus puntuaciones; puedes usarlo como guía, no como verdad absoluta.
+                    </Text>
                   </View>
+                </View>
+              </View>
+
+              <View className="px-5 pb-6 pt-5">
+                {generatingDescription && !artisticProfile ? (
+                  <View className="items-center py-6">
+                    <ActivityIndicator size="large" color="#a855f7" />
+                    <Text className="mt-3 text-center text-[15px] text-slate-400">
+                      Generando descripción personalizada...
+                    </Text>
+                  </View>
+                ) : artisticProfile ? (
+                  <>
+                    {artisticProfile.profile ? (
+                      <Text className="mb-5 text-xl font-bold leading-7 text-purple-100">
+                        {artisticProfile.profile}
+                      </Text>
+                    ) : null}
+                    <ArtisticDescriptionBody description={artisticProfile.description} />
+                  </>
+                ) : (
+                  <Text className="text-[15px] leading-6 text-slate-400">
+                    {user?._id
+                      ? 'No se pudo generar la descripción personalizada en este momento. Vuelve a intentar más tarde o revisa tus puntuaciones en Big Five.'
+                      : 'Inicia sesión para obtener una descripción personalizada basada en tus resultados. Mientras tanto puedes revisar tus puntuaciones en Big Five.'}
+                  </Text>
                 )}
               </View>
-              {generatingDescription && !artisticProfile ? (
-                <View className="items-center py-4">
-                  <ActivityIndicator size="large" color="#a855f7" />
-                  <Text className="mt-2 text-slate-400">Generando descripción personalizada...</Text>
-                </View>
-              ) : artisticProfile ? (
-                <>
-                  {artisticProfile.profile ? (
-                    <Text className="mb-2 text-lg font-semibold text-purple-200">
-                      {artisticProfile.profile}
-                    </Text>
-                  ) : null}
-                  <Text className="mb-4 leading-6 text-slate-300">{artisticProfile.description}</Text>
-                  <GenreRecommendationsBlock artisticProfile={artisticProfile} />
-                </>
-              ) : (
-                <Text className="leading-6 text-slate-400">
-                  {user?._id
-                    ? 'No se pudo generar la descripción personalizada en este momento. Vuelve a intentar más tarde o revisa tus puntuaciones en Big Five.'
-                    : 'Inicia sesión para obtener una descripción personalizada basada en tus resultados. Mientras tanto puedes revisar tus puntuaciones en Big Five.'}
-                </Text>
-              )}
             </View>
             )}
 
@@ -362,14 +507,14 @@ export default function TestResultsScreen() {
             <View className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-800/90 p-6 shadow-xl">
               <Text className="mb-1 text-xl font-bold text-white">Los Big Five</Text>
               <Text className="mb-5 text-xs text-slate-500">
-                Escala 0–5. Barras por rasgo; más abajo elige un rasgo para leer el detalle y las facetas.
+                Media Likert 1–5 por rasgo (ítems recodificados al estilo IPIP). Elige un rasgo abajo para facetas AB5C.
               </Text>
               <View className="gap-5">
                 {dimensionKeysInOrder.map((key) => {
                   const score = normalizedDimensions[key];
                   const dimInfo = DIMENSION_NAMES[key];
                   if (dimInfo === undefined) return null;
-                  const pct = Math.min(100, Math.max(0, (score / 5) * 100));
+                  const pct = likertMeanToBarPercent(score);
                   return (
                     <View key={key}>
                       <View className="flex-row items-stretch gap-3">
@@ -383,7 +528,7 @@ export default function TestResultsScreen() {
                               {dimInfo.es}
                             </Text>
                             <Text className="shrink-0 text-lg font-bold tabular-nums text-white">
-                              {score.toFixed(1)}
+                              {score.toFixed(2)}
                             </Text>
                           </View>
                           <View className="mt-2.5 h-4 overflow-hidden rounded-full bg-slate-700/85">

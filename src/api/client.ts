@@ -6,6 +6,12 @@ import type { CulturalItem } from '../types/CulturalItem';
 import { CACHE_TTL, cache } from '../utils/cache';
 import { readCachedStaleWhileRevalidate } from '../utils/staleWhileRevalidate';
 import { storage } from '../utils/storage';
+import {
+  OCEAN_RESPONSE_SCALE,
+  OCEAN_SCORE_METRIC,
+  type OceanResponseScale,
+  facetMeanForPersistence,
+} from '../utils/oceanScoring';
 
 const getAuthToken = async (): Promise<string | null> => storage.getItem('userToken');
 
@@ -95,6 +101,10 @@ export async function saveTestResults(userId: string, results: any): Promise<voi
 
   const dimensions = results.dimensions || {};
   const subfacets = results.subfacets || {};
+  const responseScale: OceanResponseScale =
+    results.responseScale === OCEAN_RESPONSE_SCALE.IPIP_1_5
+      ? OCEAN_RESPONSE_SCALE.IPIP_1_5
+      : OCEAN_RESPONSE_SCALE.LEGACY_NEG2_POS2;
 
   const scores: any = {
     openness: { total: dimensions.openness || 0 },
@@ -110,11 +120,8 @@ export async function saveTestResults(userId: string, results: any): Promise<voi
         Object.keys(subfacets[dimension]).forEach((subfacet) => {
           const subfacetValues = subfacets[dimension][subfacet];
           if (Array.isArray(subfacetValues) && subfacetValues.length > 0) {
-            const average =
-              subfacetValues.reduce((sum: number, val: number) => sum + val, 0) /
-              subfacetValues.length;
-            const normalizedValue = ((average + 2) / 4) * 5;
-            scores[dimension][subfacet] = normalizedValue;
+            const lm = facetMeanForPersistence(subfacetValues, responseScale);
+            if (Number.isFinite(lm)) scores[dimension][subfacet] = lm;
           }
         });
       }
@@ -133,6 +140,8 @@ export async function saveTestResults(userId: string, results: any): Promise<voi
     scores,
     totalScore,
     testType: results.testType || 'quick',
+    responseScale,
+    scoreMetric: OCEAN_SCORE_METRIC.IPIP_MEAN_1_5,
   };
 
   await axios.post(getBackendEndpoint('/ocean'), payload);
@@ -334,43 +343,16 @@ export type ArtisticSuggestedWork = {
   category: string;
   title: string;
   creator?: string;
+  genreHint?: string;
 };
-
-export const ARTISTIC_GENRE_KEYS = [
-  'cine',
-  'musica',
-  'literatura',
-  'videojuegos',
-  'arte-visual'
-] as const;
-
-export type GenreRecommendationsByCategory = Partial<
-  Record<(typeof ARTISTIC_GENRE_KEYS)[number], string[]>
->;
 
 export type ArtisticDescriptionPayload = {
   profile: string;
   description: string;
-  /** @deprecated Prefer genreRecommendations; mantenido por respuestas antiguas del backend */
+  /** Legado: respuestas antiguas del backend; ya no se usa en generación actual */
   recommendations: string[];
-  genreRecommendations?: GenreRecommendationsByCategory;
   suggestedWorks?: ArtisticSuggestedWork[];
 };
-
-function normalizeGenreRecommendations(
-  raw: unknown
-): GenreRecommendationsByCategory | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const o = raw as Record<string, unknown>;
-  const out: GenreRecommendationsByCategory = {};
-  for (const k of ARTISTIC_GENRE_KEYS) {
-    const arr = o[k];
-    if (!Array.isArray(arr)) continue;
-    const cleaned = arr.map((x) => String(x).trim()).filter((x) => x.length > 0);
-    if (cleaned.length) out[k] = cleaned;
-  }
-  return Object.keys(out).length ? out : undefined;
-}
 
 function normalizeArtisticPayload(raw: Record<string, unknown> | null | undefined): ArtisticDescriptionPayload {
   const rec = Array.isArray(raw?.recommendations) ? raw.recommendations : [];
@@ -392,8 +374,13 @@ function normalizeArtisticPayload(raw: Record<string, unknown> | null | undefine
     const key = `${category}:${title.toLowerCase()}`;
     if (seenWorks.has(key)) continue;
     seenWorks.add(key);
+    const genreHint =
+      typeof o.genreHint === 'string' && o.genreHint.trim().length > 0
+        ? o.genreHint.trim().slice(0, 160)
+        : undefined;
     const row: ArtisticSuggestedWork = { category, title: title.slice(0, 200) };
     if (creator) row.creator = creator;
+    if (genreHint) row.genreHint = genreHint;
     suggestedWorks.push(row);
     if (suggestedWorks.length >= 20) break;
   }
@@ -405,7 +392,6 @@ function normalizeArtisticPayload(raw: Record<string, unknown> | null | undefine
         ? raw.description
         : 'Tu análisis IA se está generando...',
     recommendations: rec.filter((x): x is string => typeof x === 'string'),
-    genreRecommendations: normalizeGenreRecommendations(raw?.genreRecommendations),
     suggestedWorks: suggestedWorks.length > 0 ? suggestedWorks : undefined,
   };
 }
@@ -430,8 +416,12 @@ export async function generateArtisticDescription(
     getBackendEndpoint(`/ocean/user/${userId}/artistic-description`),
     options?.force ? { forceRegenerate: true } : {}
   );
+  const regenerated = Boolean((response.data as { regenerated?: boolean })?.regenerated);
   const data = normalizeArtisticPayload((response.data?.data || {}) as Record<string, unknown>);
   cache.set(cacheKey, data, CACHE_TTL.artisticDescription);
+  if (regenerated) {
+    invalidatePersonalizedFeedCache();
+  }
   return data;
 }
 
@@ -441,6 +431,8 @@ export type PersonalizedFeedCuratedPayload = {
   recommendationMode?: 'ocean' | 'favorites';
   webSearchUsed?: boolean;
   reason?: string;
+  /** Respuesta rápida async: anclas del perfil antes de que termine la curación IA (solo modo océano). */
+  partial?: boolean;
   cached?: boolean;
   buildStatus?: 'building' | 'ready' | 'failed';
   buildId?: string | null;

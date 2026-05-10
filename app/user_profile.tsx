@@ -18,6 +18,12 @@ import { NavigationBar } from '../src/components/NavigationBar';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import { CulturalGridItem } from '../src/components/cultural/CulturalGridItem';
 import { DIMENSION_NAMES } from '../src/constants/oceanTestCopy';
+import {
+  OCEAN_SCORE_METRIC,
+  affineStored05ToLikertMean,
+  likertMeanToBarPercent,
+  type OceanScoreMetric,
+} from '../src/utils/oceanScoring';
 import { useAuth } from '../src/contexts/AuthContext';
 import {
   getFavorites,
@@ -98,6 +104,10 @@ export default function UserProfileScreen() {
           if (results && Array.isArray(results) && results.length > 0) {
             const latestResult = results[0];
             let dimensions: Record<string, number> = {};
+            const scoreMetric: OceanScoreMetric =
+              latestResult.scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+                ? OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+                : OCEAN_SCORE_METRIC.DISPLAY_AFFINE_05;
 
             if (
               latestResult.dimensions &&
@@ -109,7 +119,11 @@ export default function UserProfileScreen() {
               Object.keys(latestResult.scores).forEach((dimension) => {
                 const scoreObj = latestResult.scores[dimension];
                 if (scoreObj && typeof scoreObj.total === 'number') {
-                  dimensions[dimension] = scoreObj.total;
+                  const t = scoreObj.total;
+                  dimensions[dimension] =
+                    scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+                      ? t
+                      : affineStored05ToLikertMean(t);
                 }
               });
             }
@@ -488,7 +502,7 @@ const activeSortLabel =
                   const dim = DIMENSION_NAMES[key];
                   if (!dim) return null;
                   const score = typeof value === 'number' ? value : 0;
-                  const percentage = (score / 5) * 100;
+                  const percentage = likertMeanToBarPercent(score);
                   
                   return (
                     <View key={key} className="mb-2">

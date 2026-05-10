@@ -24,6 +24,7 @@ import {
   FEED_CARD_ASPECT_RATIO,
   FEED_GRID_GAP,
   FEED_H_PAD,
+  FEED_ITEMS_PER_CATEGORY_SECTION,
   RECOMMENDATION_CARD_WIDTH,
 } from '../components/feed/feedConstants';
 
@@ -52,7 +53,8 @@ const getItemLanguage = (item: CulturalItem): string => {
 };
 
 const isAllowedLanguage = (language: string): boolean => {
-  if (!language) return false;
+  /** Sin campo de idioma en metadata (caso habitual en TMDB/IGDB/Spotify/etc.): no filtrar. */
+  if (!language) return true;
   return (
     language === 'es' ||
     language === 'en' ||
@@ -70,9 +72,9 @@ const isAllowedLanguage = (language: string): boolean => {
 const isValidSearchItem = (item: CulturalItem): boolean => {
   const title = normalizeText(item.title);
   const creator = normalizeText(item.creator);
-  const description = normalizeText(item.description);
   const language = getItemLanguage(item);
-  return Boolean(title && creator && description && isAllowedLanguage(language));
+  /** Título + creador bastan; descripción opcional (TMDB/Google a veces la devuelven vacía). */
+  return Boolean(title && creator && isAllowedLanguage(language));
 };
 
 const getSearchScore = (item: CulturalItem, query: string): number => {
@@ -110,6 +112,8 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   const [favoriteItems, setFavoriteItems] = useState<CulturalItem[]>([]);
   const [searchItems, setSearchItems] = useState<CulturalItem[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Feed OCEAN vacío pero el servidor sigue generando con IA (sin mostrar anclas como falsa recomendación). */
+  const [awaitingOceanFeed, setAwaitingOceanFeed] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [refreshingFeed, setRefreshingFeed] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -199,6 +203,8 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
 
   const loadPersonalizedDefault = useCallback(async (signal?: AbortSignal, options?: { force?: boolean }) => {
     try {
+      // No reutilizar en memoria un feed "ready" viejo: cada carga pide datos actuales al servidor.
+      invalidatePersonalizedFeedCache();
       const [oceanPayload, favoritesPayload] = await Promise.all([
         fetchPersonalizedFeedCurated({
           userId: user?._id,
@@ -216,8 +222,14 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
       const favoritesList = Array.isArray(favoritesPayload.items) ? favoritesPayload.items : [];
       const isBuilding =
         oceanPayload.buildStatus === 'building' || favoritesPayload.buildStatus === 'building';
+      setAwaitingOceanFeed(
+        Boolean(user?._id) &&
+          oceanPayload.buildStatus === 'building' &&
+          list.length === 0
+      );
       setFavoritesRecommendations(favoritesList.slice(0, 15));
       if (list.length > 0) {
+        setAwaitingOceanFeed(false);
         const main = list.slice(0, 200);
         setItems(main);
         prefetchImageUris(
@@ -233,6 +245,13 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
         return;
       }
       setItems([]);
+      if (
+        !isBuilding ||
+        oceanPayload.buildStatus === 'failed' ||
+        favoritesPayload.buildStatus === 'failed'
+      ) {
+        setAwaitingOceanFeed(false);
+      }
       if (isBuilding && !feedRebuildPollTimerRef.current) {
         feedRebuildPollTimerRef.current = setTimeout(() => {
           feedRebuildPollTimerRef.current = null;
@@ -242,6 +261,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     } catch (e) {
       console.warn('Feed personalizado no disponible', e);
       if (!signal?.aborted) {
+        setAwaitingOceanFeed(false);
         setItems([]);
         setFavoritesRecommendations([]);
       }
@@ -268,6 +288,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
       }
     } catch (error) {
       console.warn('No se pudo refrescar el feed personalizado', error);
+      setAwaitingOceanFeed(false);
       setItems([]);
       setFavoritesRecommendations([]);
     } finally {
@@ -564,7 +585,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     const grouped = new Map<CulturalCategory, CulturalItem[]>();
     filteredItems.forEach((item) => {
       const list = grouped.get(item.category) || [];
-      if (list.length < 15) list.push(item);
+      if (list.length < FEED_ITEMS_PER_CATEGORY_SECTION) list.push(item);
       grouped.set(item.category, list);
     });
 
@@ -740,6 +761,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     query,
     setQuery,
     loading,
+    awaitingOceanFeed,
     searchLoading,
     refreshingFeed,
     hasSearched,

@@ -2,9 +2,10 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
-import { Bot, Menu, Sparkles, User, X } from 'lucide-react-native';
+import { Menu, Sparkles, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,14 +15,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {
-  Bubble,
-  Composer,
-  GiftedChat,
-  IMessage,
-  InputToolbar,
-  Send as GiftedSend,
-} from 'react-native-gifted-chat';
 import { KeyboardAvoidingView as KeyboardControllerAvoidingView } from 'react-native-keyboard-controller';
 import ReanimatedAnimated, {
   FadeIn,
@@ -32,7 +25,7 @@ import ReanimatedAnimated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomNavigation } from '../src/components/BottomNavigation';
 import { ConversationList } from '../src/components/chat/ConversationList';
-import { ChatTypingDots } from '../src/components/chat/ChatTypingDots';
+import { ChatThread } from '../src/components/chat/ChatThread';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import {
   createConversation,
@@ -73,6 +66,7 @@ export default function AIChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [showConversationList, setShowConversationList] = useState(false);
   const conversationIdRef = useRef<string | undefined>(undefined);
+  const previousConversationIdRef = useRef<string | undefined>(undefined);
   /** Se incrementa al cambiar peticiones IA en curso (pantalla montada o no). */
   const [aiPendingUiTick, setAiPendingUiTick] = useState(0);
 
@@ -139,18 +133,27 @@ export default function AIChatScreen() {
     }, [loadConversations, loadMessages])
   );
 
-  /** Solo reaccionar al id evita recargas al refrescar la misma conversación (objeto nuevo) y condiciones de carrera con la respuesta de la IA. */
+  /**
+   * Carga mensajes solo al cambiar de conversación real (evita wipe en React Strict Mode
+   * y borrar la lista justo después de mandar un mensaje).
+   */
   useEffect(() => {
     if (!conversationId) {
+      previousConversationIdRef.current = undefined;
       setMessages([]);
       void setCurrentConversation(null);
       return;
     }
 
-    let cancelled = false;
-
     void setCurrentConversation(conversationId);
-    setMessages([]);
+
+    const switchedConv = previousConversationIdRef.current !== conversationId;
+    previousConversationIdRef.current = conversationId;
+    if (switchedConv) {
+      setMessages([]);
+    }
+
+    let cancelled = false;
 
     void (async () => {
       try {
@@ -234,7 +237,13 @@ export default function AIChatScreen() {
 
   const handleSend = useCallback(async (textFromInput?: string) => {
     if (!currentConversation) return;
-    if (isAwaitingAiResponse(currentConversation.id)) return;
+    if (isAwaitingAiResponse(currentConversation.id)) {
+      Alert.alert(
+        'Respuesta en curso',
+        'Espera a que termine el mensaje actual o revisa tu conexión si tarda demasiado.',
+      );
+      return;
+    }
     const text = String(textFromInput ?? '').trim();
     if (!text) return;
 
@@ -242,13 +251,30 @@ export default function AIChatScreen() {
 
     const conversationIdSending = currentConversation.id;
 
-    try {
-      const aiMsg = await sendMessage(
-        conversationIdSending,
-        text,
-        undefined,
-        currentConversation.title
+    const optimisticUser: ChatMessage = {
+      id: `msg_pending_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      text,
+      sender: 'user',
+      timestamp: new Date(),
+      conversationId: conversationIdSending,
+    };
+    if (conversationIdRef.current === conversationIdSending) {
+      setMessages((prev) =>
+        [...prev, optimisticUser].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        ),
       );
+    }
+
+    try {
+      const aiMsg = await sendMessage(conversationIdSending, text, {
+        currentTitle: currentConversation.title,
+        onUserMessagePersisted: () => {
+          if (conversationIdRef.current === conversationIdSending) {
+            setMessages((prev) => prev.filter((m) => m.id !== optimisticUser.id));
+          }
+        },
+      });
       const failed = Boolean(aiMsg?.text?.trim().startsWith('Error:'));
       if (failed) {
         runErrorHaptic();
@@ -256,9 +282,9 @@ export default function AIChatScreen() {
         runSuccessHaptic();
       }
       if (conversationIdRef.current === conversationIdSending) {
-        await loadMessages(conversationIdSending);
+        void loadMessages(conversationIdSending);
       }
-      await loadConversations();
+      void loadConversations();
     } catch (error: any) {
       const aborted =
         error?.code === 'ERR_CANCELED' ||
@@ -267,28 +293,13 @@ export default function AIChatScreen() {
       if (!aborted) {
         runErrorHaptic();
         console.error('Error sending message:', error);
+        if (conversationIdRef.current === conversationIdSending) {
+          setMessages((prev) => prev.filter((m) => m.id !== optimisticUser.id));
+          void loadMessages(conversationIdSending);
+        }
       }
     }
   }, [currentConversation, loadConversations, loadMessages]);
-
-  const giftedMessages: IMessage[] = useMemo(() => (
-    messages
-      .map((message) => ({
-        _id: message.id,
-        text: message.text || '',
-        createdAt: message.timestamp,
-        user: message.sender === 'user'
-          ? { _id: 'user', name: 'Tú' }
-          : { _id: 'ai', name: 'Dream Lodge IA' },
-      }))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  ), [messages]);
-
-  const handleGiftedSend = useCallback((newMessages: IMessage[] = []) => {
-    const text = String(newMessages[0]?.text || '').trim();
-    if (!text) return;
-    handleSend(text);
-  }, [handleSend]);
 
   const displayConversation = useMemo(
     () =>
@@ -296,33 +307,6 @@ export default function AIChatScreen() {
         ? conversations.find((c) => c.id === conversationId) ?? currentConversation
         : currentConversation,
     [conversationId, conversations, currentConversation],
-  );
-
-  const renderTypingFooter = useCallback(
-    () =>
-      showTypingIndicator ? (
-        <View className="px-3 py-2">
-          <View className="bg-slate-800/90 border border-slate-700/50 rounded-xl px-3 py-2.5 self-start flex-row items-center gap-3">
-            <ChatTypingDots />
-            <Text className="text-slate-400 text-xs">Generando respuesta...</Text>
-          </View>
-        </View>
-      ) : null,
-    [showTypingIndicator],
-  );
-
-  const chatListProps = useMemo(
-    () =>
-      ({
-        keyboardShouldPersistTaps: 'handled',
-        ...(Platform.OS === 'ios'
-          ? { keyboardDismissMode: 'interactive' as const }
-          : Platform.OS !== 'web'
-            ? { keyboardDismissMode: 'on-drag' as const }
-            : {}),
-        showsVerticalScrollIndicator: false,
-      }) as const,
-    [],
   );
 
   const chatKeyboardInner = (
@@ -349,106 +333,13 @@ export default function AIChatScreen() {
                 </TouchableOpacity>
               </View>
             ) : currentConversation ? (
-              <View className="flex-1 min-h-0">
-              <GiftedChat
-                key={currentConversation.id}
-                messages={giftedMessages}
-                user={{ _id: 'user', name: 'Tú' }}
-                onSend={handleGiftedSend}
-                isTyping={showTypingIndicator}
-                isAvatarVisibleForEveryMessage={false}
-                isSendButtonAlwaysVisible
-                listProps={chatListProps}
-                keyboardAvoidingViewProps={{ enabled: false }}
-                renderAvatar={(props) => (
-                  props.currentMessage?.user._id === 'ai' ? (
-                    <View className="w-6 h-6 bg-purple-500/20 rounded-full items-center justify-center">
-                      <Bot size={12} color="#c084fc" />
-                    </View>
-                  ) : (
-                    <View className="w-6 h-6 bg-white/10 rounded-full items-center justify-center">
-                      <User size={12} color="white" />
-                    </View>
-                  )
-                )}
-                renderBubble={(props) => (
-                  <Bubble
-                    {...props}
-                    wrapperStyle={{
-                      right: {
-                        backgroundColor: '#9333ea',
-                        borderBottomRightRadius: 8,
-                      },
-                      left: {
-                        backgroundColor: 'rgba(30, 41, 59, 0.9)',
-                        borderColor: 'rgba(71, 85, 105, 0.6)',
-                        borderWidth: 1,
-                        borderBottomLeftRadius: 8,
-                      },
-                    }}
-                    textStyle={{
-                      right: { color: '#ffffff' },
-                      left: { color: '#e2e8f0' },
-                    }}
-                  />
-                )}
-                renderInputToolbar={(props) => (
-                  <InputToolbar
-                    {...props}
-                    containerStyle={{
-                      backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                      borderTopWidth: 1,
-                      borderTopColor: 'rgba(51, 65, 85, 0.6)',
-                      paddingTop: 8,
-                      paddingBottom: 8,
-                      paddingHorizontal: 8,
-                    }}
-                    primaryStyle={{ alignItems: 'center' }}
-                  />
-                )}
-                renderComposer={(props) => (
-                  <Composer
-                    {...props}
-                    textInputProps={{
-                      ...props.textInputProps,
-                      editable: !showTypingIndicator,
-                      placeholder: 'Escribe tu mensaje...',
-                      placeholderTextColor: '#64748b',
-                      style: [
-                        props.textInputProps?.style,
-                        {
-                          color: '#ffffff',
-                          backgroundColor: 'rgba(30, 41, 59, 0.9)',
-                          borderColor: 'rgba(71, 85, 105, 0.7)',
-                          borderWidth: 1,
-                          borderRadius: 14,
-                          paddingHorizontal: 12,
-                          marginRight: 8,
-                          maxHeight: 120,
-                        },
-                      ],
-                    }}
-                  />
-                )}
-                renderSend={(props) => (
-                  <GiftedSend
-                    {...props}
-                    containerStyle={{ justifyContent: 'center', marginBottom: 2, marginRight: 4 }}
-                  >
-                    <LinearGradient
-                      colors={['#9333ea', '#7e22ce']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={{ borderRadius: 12, opacity: props.text?.trim()?.length ? 1 : 0.55 }}
-                    >
-                      <View className="px-4 py-2.5">
-                        <Text className="text-white font-semibold text-sm">Enviar</Text>
-                      </View>
-                    </LinearGradient>
-                  </GiftedSend>
-                )}
-                renderFooter={renderTypingFooter}
-              />
+              <View className="flex-1 min-h-0" key={currentConversation.id}>
+                <ChatThread
+                  messages={messages}
+                  conversationId={conversationId ?? null}
+                  onSend={(t) => void handleSend(t)}
+                  isAwaitingAi={showTypingIndicator}
+                />
               </View>
             ) : (
               <View className="flex-1 items-center justify-center px-6">

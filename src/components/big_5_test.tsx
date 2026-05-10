@@ -1,4 +1,10 @@
 import { saveTestResults } from '@/api/client';
+import {
+  OCEAN_RESPONSE_SCALE,
+  OCEAN_SCORE_METRIC,
+  averageKeyedLikert,
+  scoreIPIPItem
+} from '@/utils/oceanScoring';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Brain, Check, CheckCircle2, Star } from 'lucide-react-native';
@@ -14,6 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import easierTestData from '../../app/data/easier_test.json';
+import ipipAccuracyScale from '../../app/data/ipip_accuracy_scale_es.json';
 import questionsData from '../../app/data/questions_json.json';
 import { useAuth } from '../contexts/AuthContext';
 import { BottomNavigation } from './BottomNavigation';
@@ -34,7 +41,7 @@ type Question = {
 
 type Answer = {
   questionId: number;
-  value: number; // -2 to +2
+  value: number; // IPIP raw 1–5
 };
 
 const DEEP_QUESTIONS = questionsData as Question[];
@@ -339,10 +346,8 @@ export default function BigFiveTestScreen() {
     router.replace('/test-selection');
   };
 
-  const getScoredValue = (question: Question, answerValue: number) => {
-    // IPIP/AB5C methodology: reverse-score negatively keyed items.
-    return question.keying === 'negative' ? -answerValue : answerValue;
-  };
+  const getScoredValue = (question: Question, answerValue: number) =>
+    scoreIPIPItem(answerValue, question.keying);
 
   const calculateResults = async () => {
     setLoading(true);
@@ -360,13 +365,11 @@ export default function BigFiveTestScreen() {
       }
     });
 
-    // Calcular promedio por dimensión (escala -2 a +2, convertir a 0-5)
+    /** Media Likert 1–5 por rasgo (IPIP / Mini-IPIP). */
     const results: Record<string, number> = {};
     Object.keys(dimensionScores).forEach(dimension => {
-      const scores = dimensionScores[dimension];
-      const average = scores.reduce((sum, val) => sum + val, 0) / scores.length;
-      // Convertir de -2 a +2 a 0-5
-      results[dimension] = ((average + 2) / 4) * 5;
+      const scored = dimensionScores[dimension];
+      results[dimension] = averageKeyedLikert(scored);
     });
 
     // Si es test profundo, calcular subfacetas (guardar valores raw para cálculo después)
@@ -388,6 +391,8 @@ export default function BigFiveTestScreen() {
 
     const finalResults = {
       testType,
+      responseScale: OCEAN_RESPONSE_SCALE.IPIP_1_5,
+      scoreMetric: OCEAN_SCORE_METRIC.IPIP_MEAN_1_5,
       totalQuestions: questions.length,
       answeredQuestions: answers.length,
       dimensions: results,
@@ -395,11 +400,13 @@ export default function BigFiveTestScreen() {
       timestamp: new Date().toISOString()
     };
 
-    // Guardar resultados en el backend si el usuario está autenticado
+    // Guardar en servidor: al ok se invalida análisis y feed; al navegar forzamos regeneración del perfil IA.
+    let savedToServer = false;
     if (user?._id) {
       try {
         await saveTestResults(user._id, finalResults);
-        await checkTestResults(); // Actualizar el estado de hasTestResults
+        await checkTestResults();
+        savedToServer = true;
         console.log('Resultados del test guardados exitosamente en el servidor');
       } catch (error: any) {
         console.error('Error guardando resultados:', error);
@@ -411,21 +418,19 @@ export default function BigFiveTestScreen() {
       }
     }
 
-    // Navegar a resultados
     setLoading(false);
     router.push({
       pathname: '/test_results',
-      params: { results: JSON.stringify(finalResults) }
+      params: {
+        results: JSON.stringify(finalResults),
+        ...(savedToServer ? { regenerateProfile: '1' } : {}),
+      },
     });
   };
 
-  const scaleOptions = [
-    { value: -2, label: 'Totalmente en desacuerdo', color: '#ef4444' },
-    { value: -1, label: '', color: '#f87171' },
-    { value: 0, label: 'Neutral', color: '#64748b' },
-    { value: 1, label: '', color: '#86efac' },
-    { value: 2, label: 'Totalmente de acuerdo', color: '#22c55e' }
-  ];
+  const scaleOptions = (ipipAccuracyScale.options as { value: number; label: string; color: string }[]).map(
+    (o) => ({ value: o.value, label: o.label, color: o.color })
+  );
 
   return (
     <BackgroundLayout>
@@ -493,24 +498,22 @@ export default function BigFiveTestScreen() {
                     }`}
                     style={{ backgroundColor: selectedValue === option.value ? option.color : '#1e293b' }}
                   >
-                    <Text className="text-white font-bold text-sm">
-                      {option.value > 0 ? `+${option.value}` : option.value}
-                    </Text>
+                    <Text className="text-white font-bold text-sm">{option.value}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              {/* Labels */}
-              <View className="flex-row justify-between mb-8 px-2">
-                <Text className="text-xs text-red-400 text-center flex-1">
+              <Text className="text-xs text-slate-400 text-center mb-2 px-2 leading-5">
+                {ipipAccuracyScale.instruction}
+              </Text>
+              <View className="flex-row justify-between mb-8 px-1">
+                <Text className="text-[10px] text-red-400 text-center flex-1 leading-4">
                   {scaleOptions[0].label}
                 </Text>
-                <View className="flex-1" />
-                <Text className="text-xs text-slate-400 text-center flex-1">
+                <Text className="text-[10px] text-slate-500 text-center flex-1 leading-4">
                   {scaleOptions[2].label}
                 </Text>
-                <View className="flex-1" />
-                <Text className="text-xs text-green-400 text-center flex-1">
+                <Text className="text-[10px] text-green-400 text-center flex-1 leading-4">
                   {scaleOptions[4].label}
                 </Text>
               </View>

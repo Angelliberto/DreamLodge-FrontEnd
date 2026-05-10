@@ -247,7 +247,7 @@ export async function addMessage(
 }
 
 /**
- * Actualiza texto de un mensaje existente (p. ej. streaming de la IA) y notifica a la UI.
+ * Actualiza texto de un mensaje existente y notifica a la UI.
  */
 export async function updateMessage(
   conversationId: string,
@@ -354,6 +354,11 @@ function notifyMessageListeners(conversationId: string, message: ChatMessage): v
   }
 }
 
+/** Solo UI (sin escribir a disco): permite streaming fluido antes del guardado final. */
+export function relayChatMessageUi(conversationId: string, message: ChatMessage): void {
+  notifyMessageListeners(conversationId, message);
+}
+
 /**
  * Subscribe to connection status changes
  */
@@ -390,11 +395,18 @@ export function getConnectionStatus(): ChatConnectionStatus {
   return connectionStatus;
 }
 
+export type SendAiChatParams = {
+  signal?: AbortSignal;
+  currentTitle?: string;
+  /** Tras guardar el mensaje del usuario; útil para quitar burbuja optimista sin duplicar. */
+  onUserMessagePersisted?: () => void;
+};
+
 async function fetchChatStreamNdjson(
   url: string,
   token: string,
   body: object,
-  onChunkText: (cumulative: string) => Promise<void>,
+  onChunkText: (cumulative: string) => void | Promise<void>,
   signal?: AbortSignal
 ): Promise<{ doneData?: { data?: Record<string, unknown> } }> {
   const response = await fetch(url, {
@@ -411,7 +423,8 @@ async function fetchChatStreamNdjson(
     let detail = `${response.status}`;
     try {
       const j = await response.json();
-      const m = j?.message ?? j?.data?.message;
+      const m = (j as { message?: string; data?: { message?: string } })?.message ??
+        (j as { data?: { message?: string } })?.data?.message;
       detail = typeof m === 'string' ? m : detail;
     } catch {
       try {
@@ -426,7 +439,7 @@ async function fetchChatStreamNdjson(
   const out: { doneData?: { data?: Record<string, unknown> } } = {};
   const streamBody = response.body;
   if (!streamBody?.getReader) {
-    throw new Error('Tu dispositivo no expone el cuerpo de la respuesta en streaming.');
+    throw new Error('Streaming no disponible en este entorno.');
   }
 
   const reader = streamBody.getReader();
@@ -456,7 +469,7 @@ async function fetchChatStreamNdjson(
           typeof ev.message === 'string' ? ev.message : 'Error en la respuesta del servidor'
         );
       } else if (ev.type === 'done') {
-        out.doneData = { data: ev.data } as { data?: Record<string, unknown> };
+        out.doneData = { data: ev.data };
       }
     }
   }
@@ -477,15 +490,15 @@ async function fetchChatStreamNdjson(
 }
 
 /**
- * Envía al agente IA. Usa POST /chat/message/stream (texto en tiempo real); ante fallo usa POST /chat/message.
+ * Envía al agente IA: intenta streaming (como Gemini/ChatGPT); si falla, POST clásico.
  */
 export async function sendMessage(
   conversationId: string,
   text: string,
-  signal?: AbortSignal,
-  currentTitle?: string
+  params?: SendAiChatParams
 ): Promise<ChatMessage> {
   console.log('📤 Enviando mensaje al agente IA...');
+  const { signal, currentTitle, onUserMessagePersisted } = params ?? {};
 
   const conversationsForContext = await getConversations();
   const convForContext = conversationsForContext.find(c => c.id === conversationId);
@@ -493,6 +506,11 @@ export async function sendMessage(
   const contextItemIds = contextItemsForChat.map((item) => item.id);
 
   await addMessage(conversationId, text, 'user', contextItemIds);
+  try {
+    onUserMessagePersisted?.();
+  } catch {
+    /* noop */
+  }
 
   markAiRequestStart(conversationId);
 
@@ -520,69 +538,43 @@ export async function sendMessage(
       throw new Error('No autenticado');
     }
 
+    const payload = {
+      message: text,
+      conversationId,
+      currentTitle,
+      contextItems: contextItemsForChat,
+    };
+
     let lastAiText = '';
+
+    let doneData: Record<string, unknown> | undefined;
     try {
       const streamUrl = getBackendEndpoint('/chat/message/stream');
       const done = await fetchChatStreamNdjson(
         streamUrl,
         token,
-        {
-          message: text,
-          conversationId,
-          currentTitle,
-          contextItems: contextItemsForChat,
-        },
+        payload,
         async (cumulative) => {
           lastAiText = cumulative;
-          await updateMessage(conversationId, placeholderAi.id, cumulative);
+          relayChatMessageUi(conversationId, {
+            ...placeholderAi,
+            text: cumulative,
+          });
         },
         signal
       );
-
-      setConnectionStatus('connected');
-
-      const data = done.doneData?.data as Record<string, unknown> | undefined;
-      const finalResponse =
-        typeof data?.response === 'string' ? data.response.trim() : lastAiText.trim();
-
-      if (!finalResponse) {
-        throw new Error('El agente IA devolvió una respuesta vacía.');
-      }
-
-      if (finalResponse !== lastAiText) {
-        await updateMessage(conversationId, placeholderAi.id, finalResponse);
-      }
-
-      await applySuggestedTitle(data?.suggestedTitle);
-
-      const messagesAfter = await getMessages(conversationId);
-      const finalMsg = messagesAfter.find(m => m.id === placeholderAi.id);
-      if (finalMsg) {
-        return finalMsg;
-      }
-      return {
-        id: placeholderAi.id,
-        text: finalResponse,
-        sender: 'ai' as const,
-        timestamp: placeholderAi.timestamp,
-        conversationId,
-      };
-    } catch (streamErr: unknown) {
-      console.warn('Stream chat falló, usando POST clásico:', streamErr);
+      doneData = done.doneData?.data as Record<string, unknown> | undefined;
+    } catch {
+      console.warn('Stream del chat falló en red/parseo; usando POST /chat/message');
       const response = await axios.post(
         getBackendEndpoint('/chat/message'),
-        {
-          message: text,
-          conversationId,
-          currentTitle,
-          contextItems: contextItemsForChat,
-        },
+        payload,
         {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          timeout: 70000,
+          timeout: 120000,
           signal,
         }
       );
@@ -599,10 +591,10 @@ export async function sendMessage(
       await updateMessage(conversationId, placeholderAi.id, aiResponseText);
       await applySuggestedTitle(response.data?.data?.suggestedTitle);
 
-      const messagesAfter = await getMessages(conversationId);
-      const finalMsg = messagesAfter.find(m => m.id === placeholderAi.id);
-      if (finalMsg) {
-        return finalMsg;
+      const messagesAfterFallback = await getMessages(conversationId);
+      const finalMsgFb = messagesAfterFallback.find((m) => m.id === placeholderAi.id);
+      if (finalMsgFb) {
+        return finalMsgFb;
       }
       return {
         id: placeholderAi.id,
@@ -612,8 +604,43 @@ export async function sendMessage(
         conversationId,
       };
     }
+
+    setConnectionStatus('connected');
+
+    const finalResponse =
+      typeof doneData?.response === 'string'
+        ? (doneData.response as string).trim()
+        : lastAiText.trim();
+
+    if (!finalResponse) {
+      throw new Error('El agente IA devolvió una respuesta vacía.');
+    }
+
+    if (finalResponse !== lastAiText.trim()) {
+      relayChatMessageUi(conversationId, {
+        ...placeholderAi,
+        text: finalResponse,
+      });
+    }
+
+    await updateMessage(conversationId, placeholderAi.id, finalResponse);
+    await applySuggestedTitle(doneData?.suggestedTitle);
+
+    const messagesAfter = await getMessages(conversationId);
+    const finalMsg = messagesAfter.find((m) => m.id === placeholderAi.id);
+    if (finalMsg) {
+      return finalMsg;
+    }
+    return {
+      id: placeholderAi.id,
+      text: finalResponse,
+      sender: 'ai' as const,
+      timestamp: placeholderAi.timestamp,
+      conversationId,
+    };
   } catch (error: any) {
     const isAborted =
+      error?.code === 'ERR_CANCELED' ||
       error?.name === 'AbortError' ||
       error?.name === 'CanceledError';
 
