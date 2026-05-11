@@ -62,7 +62,6 @@ export default function UserProfileScreen() {
     pending: LOAD_BATCH_SIZE,
     notInterested: LOAD_BATCH_SIZE,
   });
-  const [showSortOptions, setShowSortOptions] = useState(false);
   const [loading, setLoading] = useState(true);
   const [testResults, setTestResults] = useState<any>(null);
   const [profile, setProfile] = useState<{ profile: string; description: string } | null>(null);
@@ -533,156 +532,107 @@ const activeSortLabel =
           )}
 
           {/* Tabs */}
-          {/* Library Tabs */}
-          <View className="px-4 pt-2 pb-3">
-            <View className="border-b border-slate-700/60">
-              <View className="flex-row">
-                {tabOptions.map((tab) => {
-                  const isActive = activeTab === tab.key;
+         {/* Library Tabs */}
+<View className="px-4 pt-2 pb-3">
+  <View className="border-b border-slate-700/60">
+    <View className="flex-row">
+      {tabOptions.map((tab) => {
+        const isActive = activeTab === tab.key;
 
-                  return (
-                    <TouchableOpacity
-                      key={tab.key}
-                      activeOpacity={0.8}
-                      onPress={() => setActiveTab(tab.key)}
-                      className="flex-1 items-center pb-3"
-                    >
-                      <Text
-                        className={`text-base font-bold ${
-                          isActive ? 'text-white' : 'text-slate-500'
-                        }`}
-                        numberOfLines={1}
-                      >
-                        {tab.label}
-                      </Text>
+        return (
+          <TouchableOpacity
+            key={tab.key}
+            activeOpacity={0.8}
+            onPress={() => setActiveTab(tab.key)}
+            className="flex-1 items-center pb-3"
+          >
+            <Text
+              className={`text-base font-bold ${
+                isActive ? 'text-white' : 'text-slate-500'
+              }`}
+              numberOfLines={1}
+            >
+              {tab.label}
+            </Text>
 
-                      <Text
-                        className={`mt-1 text-xs ${
-                          isActive ? 'text-purple-300' : 'text-slate-600'
-                        }`}
-                      >
-                        {tab.count}
-                      </Text>
+            <Text
+              className={`mt-1 text-xs ${
+                isActive ? 'text-purple-300' : 'text-slate-600'
+              }`}
+            >
+              {tab.count}
+            </Text>
 
-                      <View
-                        className={`mt-3 h-1 w-full rounded-full ${
-                          isActive ? 'bg-purple-400' : 'bg-transparent'
-                        }`}
-                      />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+            <View
+              className={`mt-3 h-1 w-full rounded-full ${
+                isActive ? 'bg-purple-400' : 'bg-transparent'
+              }`}
+            />
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  </View>
 
-            <View className="mt-4 flex-row items-center justify-between">
-              <View>
-                <Text className="text-white text-lg font-bold">
-                  {activeTab === 'favorites'
-                    ? 'Favoritos'
-                    : activeTab === 'pending'
-                      ? 'Pendientes'
-                      : 'Ocultos'}
-                </Text>
+  <View className="mt-4">
+    <View className="flex-row items-center justify-between">
+      <View className="flex-1 pr-3">
+        <Text className="text-white text-lg font-bold">
+          {activeTab === 'favorites'
+            ? 'Favoritos'
+            : activeTab === 'pending'
+              ? 'Pendientes'
+              : 'Ocultos'}
+        </Text>
 
-                <Text className="mt-1 text-xs text-slate-400">
-                  {currentItems.length} obras · Orden: {activeSortLabel}{' '}
-                  {sortDirection === 'desc' ? '↓' : '↑'}
-                </Text>
-              </View>
+        <Text className="mt-1 text-xs text-slate-400">
+          {currentItems.length} obras · Orden: {activeSortLabel}{' '}
+          {sortDirection === 'desc' ? '↓' : '↑'}
+        </Text>
+      </View>
 
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={() => setShowSortOptions((prev) => !prev)}
-                className={`rounded-full border px-4 py-2 ${
-                  showSortOptions
-                    ? 'border-purple-500/70 bg-purple-600/25'
-                    : 'border-slate-700/70 bg-slate-900/70'
-                }`}
-              >
-                <Text
-                  className={`text-xs font-semibold ${
-                    showSortOptions ? 'text-purple-100' : 'text-slate-300'
-                  }`}
-                >
-                  Ordenar
-                </Text>
-              </TouchableOpacity>
-            </View>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() =>
+          setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+        }
+        className="rounded-full border border-slate-700/70 bg-slate-900/70 px-4 py-2"
+      >
+        <Text className="text-xs font-semibold text-slate-300">
+          {sortDirection === 'desc' ? 'Descendente ↓' : 'Ascendente ↑'}
+        </Text>
+      </TouchableOpacity>
+    </View>
 
-            {showSortOptions && (
-              <View className="mt-3 rounded-2xl border border-slate-700/60 bg-slate-900/80 p-3">
-                <Text className="mb-3 text-xs font-semibold text-slate-400">
-                  Ordenar obras
-                </Text>
+    <View className="mt-3 flex-row flex-wrap gap-2">
+      {sortOptions.map((option) => {
+        const isActive = sortMode === option.key;
 
-                <View className="flex-row flex-wrap gap-2">
-                  {sortOptions.map((option) => {
-                    const isActive = sortMode === option.key;
-
-                    return (
-                      <TouchableOpacity
-                        key={option.key}
-                        activeOpacity={0.85}
-                        onPress={() => setSortMode(option.key)}
-                        className={`rounded-full border px-3 py-1.5 ${
-                          isActive
-                            ? 'border-purple-500/70 bg-purple-600/25'
-                            : 'border-slate-600/70 bg-slate-800/70'
-                        }`}
-                      >
-                        <Text
-                          className={`text-xs font-medium ${
-                            isActive ? 'text-purple-100' : 'text-slate-300'
-                          }`}
-                        >
-                          {option.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                <View className="mt-3 flex-row gap-2">
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => setSortDirection('desc')}
-                    className={`flex-1 rounded-xl border px-3 py-2.5 items-center ${
-                      sortDirection === 'desc'
-                        ? 'border-purple-500/70 bg-purple-600/25'
-                        : 'border-slate-600/70 bg-slate-800/70'
-                    }`}
-                  >
-                    <Text
-                      className={`text-xs font-semibold ${
-                        sortDirection === 'desc' ? 'text-purple-100' : 'text-slate-300'
-                      }`}
-                    >
-                      Descendente
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => setSortDirection('asc')}
-                    className={`flex-1 rounded-xl border px-3 py-2.5 items-center ${
-                      sortDirection === 'asc'
-                        ? 'border-purple-500/70 bg-purple-600/25'
-                        : 'border-slate-600/70 bg-slate-800/70'
-                    }`}
-                  >
-                    <Text
-                      className={`text-xs font-semibold ${
-                        sortDirection === 'asc' ? 'text-purple-100' : 'text-slate-300'
-                      }`}
-                    >
-                      Ascendente
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
+        return (
+          <TouchableOpacity
+            key={option.key}
+            activeOpacity={0.85}
+            onPress={() => setSortMode(option.key)}
+            className={`rounded-full border px-3 py-1.5 ${
+              isActive
+                ? 'border-purple-500/70 bg-purple-600/25'
+                : 'border-slate-600/70 bg-slate-800/70'
+            }`}
+          >
+            <Text
+              className={`text-xs font-medium ${
+                isActive ? 'text-purple-100' : 'text-slate-300'
+              }`}
+            >
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  </View>
+</View>
+         
           {/* Artworks Grid */}
           <View className="px-4 pb-4">
             {loadingArtworks && (favorites.length === 0 && pending.length === 0 && notInterested.length === 0) ? (
