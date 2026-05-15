@@ -1,6 +1,7 @@
 // src/services/chat/chatService.ts
 
 import axios from 'axios';
+import { fetch as expoFetch } from 'expo/fetch';
 import { getBackendEndpoint } from '../../config/api';
 import { CulturalItem } from '../../types/CulturalItem';
 import { ChatConversation, ChatMessage, ChatConnectionStatus } from '../../types/chat';
@@ -400,16 +401,73 @@ export type SendAiChatParams = {
   currentTitle?: string;
   /** Tras guardar el mensaje del usuario; útil para quitar burbuja optimista sin duplicar. */
   onUserMessagePersisted?: () => void;
+  /** Fases del backend: persistence | preparing | generating */
+  onStreamStatus?: (phase: string) => void;
 };
 
+type NdjsonEv = {
+  type?: string;
+  text?: string;
+  message?: string;
+  phase?: string;
+  data?: Record<string, unknown>;
+};
+
+async function applyNdjsonLine(
+  line: string,
+  out: { doneData?: { data?: Record<string, unknown> } },
+  onChunkText: (cumulative: string) => void | Promise<void>,
+  onStreamStatus?: (phase: string) => void
+): Promise<void> {
+  const t = line.trim();
+  if (!t) return;
+  let ev: NdjsonEv;
+  try {
+    ev = JSON.parse(t) as NdjsonEv;
+  } catch {
+    return;
+  }
+  if (ev.type === 'chunk' && typeof ev.text === 'string') {
+    await onChunkText(ev.text);
+  } else if (ev.type === 'status' && typeof ev.phase === 'string') {
+    onStreamStatus?.(ev.phase);
+  } else if (ev.type === 'error') {
+    throw new Error(
+      typeof ev.message === 'string' ? ev.message : 'Error en la respuesta del servidor'
+    );
+  } else if (ev.type === 'done') {
+    out.doneData = { data: ev.data };
+  }
+}
+
+/** Consume NDJSON línea a línea (respuesta del stream del chat). */
+async function consumeNdjsonText(
+  fullText: string,
+  onChunkText: (cumulative: string) => void | Promise<void>,
+  onStreamStatus?: (phase: string) => void
+): Promise<{ doneData?: { data?: Record<string, unknown> } }> {
+  const out: { doneData?: { data?: Record<string, unknown> } } = {};
+  const lines = fullText.split(/\r?\n/);
+  for (const line of lines) {
+    await applyNdjsonLine(line, out, onChunkText, onStreamStatus);
+  }
+  return out;
+}
+
+/**
+ * POST al endpoint NDJSON del chat.
+ * Usa `expo/fetch`: en React Native el `fetch` global suele no exponer `response.body.getReader()`,
+ * y el stream del backend falla sin esto.
+ */
 async function fetchChatStreamNdjson(
   url: string,
   token: string,
   body: object,
   onChunkText: (cumulative: string) => void | Promise<void>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onStreamStatus?: (phase: string) => void
 ): Promise<{ doneData?: { data?: Record<string, unknown> } }> {
-  const response = await fetch(url, {
+  const response = await expoFetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -438,11 +496,13 @@ async function fetchChatStreamNdjson(
 
   const out: { doneData?: { data?: Record<string, unknown> } } = {};
   const streamBody = response.body;
-  if (!streamBody?.getReader) {
-    throw new Error('Streaming no disponible en este entorno.');
+  const reader = streamBody?.getReader?.();
+
+  if (!reader) {
+    const fullText = await response.text();
+    return consumeNdjsonText(fullText, onChunkText, onStreamStatus);
   }
 
-  const reader = streamBody.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
 
@@ -450,40 +510,17 @@ async function fetchChatStreamNdjson(
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
+    const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() ?? '';
 
     for (const line of lines) {
-      const t = line.trim();
-      if (!t) continue;
-      let ev: { type?: string; text?: string; message?: string; data?: Record<string, unknown> };
-      try {
-        ev = JSON.parse(t) as typeof ev;
-      } catch {
-        continue;
-      }
-      if (ev.type === 'chunk' && typeof ev.text === 'string') {
-        await onChunkText(ev.text);
-      } else if (ev.type === 'error') {
-        throw new Error(
-          typeof ev.message === 'string' ? ev.message : 'Error en la respuesta del servidor'
-        );
-      } else if (ev.type === 'done') {
-        out.doneData = { data: ev.data };
-      }
+      await applyNdjsonLine(line, out, onChunkText, onStreamStatus);
     }
   }
 
   const tail = buffer.trim();
   if (tail) {
-    try {
-      const ev = JSON.parse(tail) as { type?: string; data?: Record<string, unknown> };
-      if (ev.type === 'done') {
-        out.doneData = { data: ev.data };
-      }
-    } catch {
-      /* noop */
-    }
+    await applyNdjsonLine(tail, out, onChunkText, onStreamStatus);
   }
 
   return out;
@@ -498,7 +535,7 @@ export async function sendMessage(
   params?: SendAiChatParams
 ): Promise<ChatMessage> {
   console.log('📤 Enviando mensaje al agente IA...');
-  const { signal, currentTitle, onUserMessagePersisted } = params ?? {};
+  const { signal, currentTitle, onUserMessagePersisted, onStreamStatus } = params ?? {};
 
   const conversationsForContext = await getConversations();
   const convForContext = conversationsForContext.find(c => c.id === conversationId);
@@ -561,11 +598,13 @@ export async function sendMessage(
             text: cumulative,
           });
         },
-        signal
+        signal,
+        onStreamStatus
       );
       doneData = done.doneData?.data as Record<string, unknown> | undefined;
-    } catch {
-      console.warn('Stream del chat falló en red/parseo; usando POST /chat/message');
+    } catch (streamErr: unknown) {
+      const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
+      console.warn('Stream del chat falló en red/parseo; usando POST /chat/message —', msg);
       const response = await axios.post(
         getBackendEndpoint('/chat/message'),
         payload,

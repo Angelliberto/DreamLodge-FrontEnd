@@ -27,6 +27,7 @@ import {
   FEED_ITEMS_PER_CATEGORY_SECTION,
   RECOMMENDATION_CARD_WIDTH,
 } from '../components/feed/feedConstants';
+import { DEFAULT_FILTER_CATEGORIES } from '../components/feed/feedCategories';
 
 export type FeedFilterCategoryOption = {
   key: CulturalCategory;
@@ -120,9 +121,9 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   const [favoriteIds, setFavoriteIds] = useState<Map<string, { mongoId?: string }>>(new Map());
   const [pendingIds, setPendingIds] = useState<Map<string, { mongoId?: string }>>(new Map());
   const [updatingItems, setUpdatingItems] = useState<Set<string>>(new Set());
-  const [showFilters, setShowFilters] = useState(false);
-  const [selectedCategories, setSelectedCategories] = useState<CulturalCategory[]>([]);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<CulturalCategory[]>(
+    () => [...DEFAULT_FILTER_CATEGORIES]
+  );
   const [notInterestedIds, setNotInterestedIds] = useState<Set<string>>(new Set());
   const notInterestedStorageKey = useMemo(
     () => `feed.notInterestedIds:${user?._id || 'anon'}`,
@@ -133,18 +134,18 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const loadingArtworksRef = useRef(false);
   const feedRebuildPollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Evita encolar varios refrescos si el usuario pulsa varias veces antes del re-render. */
+  const refreshFeedInFlightRef = useRef(false);
 
-  const searchFilters = useMemo<GlobalSearchFilters>(() => ({
-    categories: selectedCategories,
-    genres: selectedGenres,
-  }), [selectedCategories, selectedGenres]);
+  const searchFilters = useMemo<GlobalSearchFilters>(
+    () => ({ categories: selectedCategories, genres: [] }),
+    [selectedCategories]
+  );
 
-  const hasActiveFilters = useMemo(() => {
-    return (
-      selectedCategories.length > 0 ||
-      selectedGenres.length > 0
-    );
-  }, [selectedCategories, selectedGenres]);
+  const hasActiveFilters = useMemo(
+    () => selectedCategories.length > 0,
+    [selectedCategories]
+  );
 
   const performSearch = useCallback(async (text: string, signal?: AbortSignal) => {
     const trimmed = text.trim();
@@ -269,14 +270,15 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
   }, [user?._id]);
 
   const refreshFeed = useCallback(async () => {
+    if (refreshFeedInFlightRef.current) return;
+    refreshFeedInFlightRef.current = true;
+
     setShowSearchScreen(false);
-    setShowFilters(false);
     setQuery('');
     setSearchItems([]);
     setHasSearched(false);
     setSearchLoading(false);
-    setSelectedCategories([]);
-    setSelectedGenres([]);
+    setSelectedCategories([...DEFAULT_FILTER_CATEGORIES]);
     setLoading(true);
     setRefreshingFeed(true);
     try {
@@ -292,6 +294,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
       setItems([]);
       setFavoritesRecommendations([]);
     } finally {
+      refreshFeedInFlightRef.current = false;
       setRefreshingFeed(false);
       setLoading(false);
     }
@@ -599,16 +602,6 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
       .filter((section) => section.data.length > 0);
   }, [filteredItems, filterCategories]);
 
-  const availableGenres = useMemo(() => {
-    const unique = new Set<string>();
-    items.forEach((item) => {
-      (item.metadata?.genres || []).forEach((genre) => {
-        if (genre?.trim()) unique.add(genre.trim());
-      });
-    });
-    return Array.from(unique).slice(0, 15);
-  }, [items]);
-
   const { feedCardWidth, feedPosterHeight } = useMemo(() => {
     const w = Dimensions.get('window').width;
     const cardWidth = (w - FEED_H_PAD * 2 - FEED_GRID_GAP) / 2;
@@ -622,17 +615,6 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     setSelectedCategories((prev) =>
       prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
     );
-  }, []);
-
-  const toggleGenre = useCallback((genre: string) => {
-    setSelectedGenres((prev) =>
-      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
-    );
-  }, []);
-
-  const clearFilters = useCallback(() => {
-    setSelectedCategories([]);
-    setSelectedGenres([]);
   }, []);
 
   const handleToggleFavorite = useCallback(async (item: CulturalItem, e: any) => {
@@ -697,7 +679,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
 
   const handleTogglePending = useCallback(async (item: CulturalItem, e: any) => {
     e.stopPropagation();
-    if (!user) return Alert.alert('Inicia sesión', 'Debes iniciar sesión para agregar a pendientes');
+    if (!user) return Alert.alert('Inicia sesión', 'Debes iniciar sesión para guardar obras');
 
     const itemId = item.id;
     const pendingData = pendingIds.get(itemId);
@@ -745,7 +727,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
       }
     } catch (error: unknown) {
       console.error('Error toggling pending:', error);
-      Alert.alert('Error', getApiAlertMessage(error, 'No se pudo actualizar la lista de pendientes'));
+      Alert.alert('Error', getApiAlertMessage(error, 'No se pudo actualizar la lista de guardados'));
     } finally {
       setUpdatingItems((prev) => {
         const next = new Set(prev);
@@ -765,10 +747,7 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     searchLoading,
     refreshingFeed,
     hasSearched,
-    showFilters,
-    setShowFilters,
     selectedCategories,
-    selectedGenres,
     hasActiveFilters,
     favoriteIds,
     pendingIds,
@@ -778,14 +757,11 @@ export function useFeedScreenController(filterCategories: FeedFilterCategoryOpti
     principalRecommendations,
     favoritesRecommendationLine,
     recommendationsByCategory,
-    availableGenres,
     feedCardWidth,
     feedPosterHeight,
     recommendationCardWidth,
     recommendationPosterHeight,
     toggleCategory,
-    toggleGenre,
-    clearFilters,
     handleToggleFavorite,
     handleTogglePending,
     getCategoryIcon,

@@ -227,6 +227,53 @@ export async function getArtworkById(id: string): Promise<any> {
   return response.data?.data || response.data;
 }
 
+/** Descripción breve vía Gemini para álbum Spotify con texto genérico ("Álbum con N canciones"). */
+export async function enrichSpotifyAlbumDescription(
+  artwork: Record<string, unknown>
+): Promise<{ description: string } | null> {
+  const url = getBackendEndpoint('/artworks/spotify/album-enrich');
+  try {
+    const response = await axios.post(
+      url,
+      { artwork },
+      { timeout: 32000, headers: { 'Content-Type': 'application/json' } }
+    );
+    const row = response.data?.data;
+    if (row && typeof row.description === 'string' && row.description.trim().length > 0) {
+      return { description: row.description.trim() };
+    }
+    return null;
+  } catch (e: unknown) {
+    const err = e as { response?: { status?: number; data?: unknown }; message?: string; config?: { url?: string } };
+    console.warn('[enrichSpotifyAlbumDescription]', {
+      url,
+      status: err?.response?.status,
+      data: err?.response?.data,
+      message: err?.message,
+    });
+    return null;
+  }
+}
+
+/** Traduce la descripción al español (Gemini en servidor). */
+export async function translateArtworkDescriptionToSpanish(
+  text: string
+): Promise<{ text: string; alreadySpanish: boolean }> {
+  const response = await axios.post(
+    getBackendEndpoint('/artworks/translate-description'),
+    { text },
+    { timeout: 45000, headers: { 'Content-Type': 'application/json' } }
+  );
+  const row = response.data?.data;
+  if (row && typeof row.text === 'string') {
+    return {
+      text: row.text.trim(),
+      alreadySpanish: Boolean(row.alreadySpanish),
+    };
+  }
+  throw new Error('Respuesta de traducción inválida');
+}
+
 export async function getSimilarArtworks(
   artwork: Partial<CulturalItem>,
   options?: { limit?: number; targetCategory?: CulturalItem['category']; timeoutMs?: number }

@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ProfileHeader } from '@/components/ProfileHeader';
-import { Brain, EyeOff, Film, Heart, Sparkles } from 'lucide-react-native';
+import { Bookmark, Brain, EyeOff, Heart, Sparkles } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -357,15 +357,15 @@ export default function UserProfileScreen() {
     }
     if (activeTab === 'pending') {
       return {
-        icon: Film,
-        title: 'No tienes pendientes',
+        icon: Bookmark,
+        title: 'No tienes guardados',
         subtitle: 'Marca obras que quieres ver después',
       };
     }
     return {
       icon: EyeOff,
-      title: 'No tienes obras marcadas',
-      subtitle: 'Aquí verás lo que marcaste como no me interesa',
+      title: 'No has ocultado ninguna obra',
+      subtitle: 'Las obras que ocultes en el feed aparecerán aquí',
     };
   }, [activeTab]);
 
@@ -387,12 +387,12 @@ export default function UserProfileScreen() {
     },
     {
       key: 'pending',
-      label: 'Pendientes',
+      label: 'Guardados',
       count: pendingCount,
     },
     {
       key: 'notInterested',
-      label: 'Ocultos',
+      label: 'Ocultar',
       count: notInterestedCount,
     },
   ];
@@ -581,8 +581,8 @@ const activeSortLabel =
           {activeTab === 'favorites'
             ? 'Favoritos'
             : activeTab === 'pending'
-              ? 'Pendientes'
-              : 'Ocultos'}
+              ? 'Guardados'
+              : 'Ocultar'}
         </Text>
 
         <Text className="mt-1 text-xs text-slate-400">

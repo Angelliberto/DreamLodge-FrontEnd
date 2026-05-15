@@ -1,4 +1,4 @@
-import { Clock, Heart, Star } from 'lucide-react-native';
+import { Bookmark, Heart, Star } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { CulturalItem } from '@/types/CulturalItem';
@@ -64,6 +64,8 @@ export const ArtworkCard = React.memo(function ArtworkCard({
               className="bg-black/55 w-8 h-8 rounded-full items-center justify-center"
               onPress={(e) => onToggleFavorite(item, e)}
               disabled={isUpdatingFavorite}
+              accessibilityLabel={isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+              accessibilityRole="button"
             >
               <Heart
                 size={15}
@@ -75,8 +77,10 @@ export const ArtworkCard = React.memo(function ArtworkCard({
               className="bg-black/55 w-8 h-8 rounded-full items-center justify-center"
               onPress={(e) => onTogglePending(item, e)}
               disabled={isUpdatingPending}
+              accessibilityLabel={isPending ? 'Quitar de guardados' : 'Guardar obra'}
+              accessibilityRole="button"
             >
-              <Clock
+              <Bookmark
                 size={15}
                 color={isPending ? '#fbbf24' : 'white'}
                 fill={isPending ? '#fbbf24' : 'none'}

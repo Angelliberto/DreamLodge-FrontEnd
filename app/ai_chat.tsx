@@ -69,6 +69,8 @@ export default function AIChatScreen() {
   const previousConversationIdRef = useRef<string | undefined>(undefined);
   /** Se incrementa al cambiar peticiones IA en curso (pantalla montada o no). */
   const [aiPendingUiTick, setAiPendingUiTick] = useState(0);
+  /** Fases NDJSON del backend (persistence | preparing | generating). */
+  const [streamPhase, setStreamPhase] = useState<string | null>(null);
 
   const loadMessages = useCallback(async (conversationId: string) => {
     try {
@@ -118,6 +120,24 @@ export default function AIChatScreen() {
   const showTypingIndicator =
     aiPendingUiTick >= 0 &&
     Boolean(conversationId && isAwaitingAiResponse(conversationId));
+
+  useEffect(() => {
+    if (!showTypingIndicator) setStreamPhase(null);
+  }, [showTypingIndicator]);
+
+  const typingStatusText = useMemo(() => {
+    if (!streamPhase) return undefined;
+    switch (streamPhase) {
+      case 'persistence':
+        return 'Sincronizando conversación…';
+      case 'preparing':
+        return 'Consultando perfil, favoritos y obras enlazadas…';
+      case 'generating':
+        return 'Generando respuesta con Gemini…';
+      default:
+        return undefined;
+    }
+  }, [streamPhase]);
 
   useEffect(
     () => subscribeAiPending(() => setAiPendingUiTick((t) => t + 1)),
@@ -248,6 +268,7 @@ export default function AIChatScreen() {
     if (!text) return;
 
     runSoftHaptic();
+    setStreamPhase(null);
 
     const conversationIdSending = currentConversation.id;
 
@@ -272,6 +293,11 @@ export default function AIChatScreen() {
         onUserMessagePersisted: () => {
           if (conversationIdRef.current === conversationIdSending) {
             setMessages((prev) => prev.filter((m) => m.id !== optimisticUser.id));
+          }
+        },
+        onStreamStatus: (phase) => {
+          if (conversationIdRef.current === conversationIdSending) {
+            setStreamPhase(phase);
           }
         },
       });
@@ -339,6 +365,7 @@ export default function AIChatScreen() {
                   conversationId={conversationId ?? null}
                   onSend={(t) => void handleSend(t)}
                   isAwaitingAi={showTypingIndicator}
+                  typingStatusText={typingStatusText}
                 />
               </View>
             ) : (

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Brain, Check, Sparkles, Star, User as UserIcon } from 'lucide-react-native';
+import { Brain, Check, Star, User as UserIcon } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -11,7 +11,6 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   ArtisticDescriptionPayload,
@@ -444,14 +443,6 @@ export default function TestResultsScreen() {
             <View className="mb-6 overflow-hidden rounded-2xl border border-purple-500/20 bg-slate-900/80 shadow-xl">
               <View className="border-b border-white/10 bg-violet-950/55 px-5 py-4">
                 <View className="flex-row items-center gap-3">
-                  <LinearGradient
-                    colors={['#7c3aed', '#9333ea']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    className="h-11 w-11 items-center justify-center rounded-xl"
-                  >
-                    <Sparkles size={22} color="#faf5ff" />
-                  </LinearGradient>
                   <View className="min-w-0 flex-1">
                     <View className="mb-1 flex-row flex-wrap items-center gap-2">
                       {generatingDescription && (
@@ -465,12 +456,9 @@ export default function TestResultsScreen() {
                         </View>
                       ) : null}
                       <Text className="text-base font-semibold tracking-tight text-white">
-                        Análisis de personalidad
+                        Generado a partir de tus puntuaciones.
                       </Text>
                     </View>
-                    <Text className="text-xs leading-4 text-violet-200/85">
-                      Generado a partir de tus puntuaciones; puedes usarlo como guía, no como verdad absoluta.
-                    </Text>
                   </View>
                 </View>
               </View>
@@ -484,14 +472,7 @@ export default function TestResultsScreen() {
                     </Text>
                   </View>
                 ) : artisticProfile ? (
-                  <>
-                    {artisticProfile.profile ? (
-                      <Text className="mb-5 text-xl font-bold leading-7 text-purple-100">
-                        {artisticProfile.profile}
-                      </Text>
-                    ) : null}
-                    <ArtisticDescriptionBody description={artisticProfile.description} />
-                  </>
+                  <ArtisticDescriptionBody description={artisticProfile.description} />
                 ) : (
                   <Text className="text-[15px] leading-6 text-slate-400">
                     {user?._id
