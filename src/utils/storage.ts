@@ -1,15 +1,32 @@
 // Storage utility that works on web and mobile
 // Uses SecureStore for mobile (with size limit handling) and localStorage for web
+// Chat history can exceed 2KB and chunking can break UTF-8 → use AsyncStorage for chat_* keys on native.
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 const isWeb = Platform.OS === 'web';
+
+function isChatPersistenceKey(key: string): boolean {
+  return String(key ?? '').startsWith('chat_');
+}
 
 // Maximum size for SecureStore (2048 bytes) - values larger than this will show warnings
 // but we'll still attempt to store them (some devices may allow slightly larger values)
 const SECURE_STORE_MAX_SIZE = 2048;
 // Chunk size with some margin to ensure we stay under the limit
 const CHUNK_SIZE = 1800;
+
+/**
+ * Normalize keys to be compatible with expo-secure-store.
+ * Allowed chars: a-zA-Z0-9 . - _
+ */
+function normalizeSecureStoreKey(key: string): string {
+  const raw = String(key ?? '').trim();
+  if (!raw) return 'storage_key';
+  const normalized = raw.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return normalized.length > 0 ? normalized : 'storage_key';
+}
 
 /**
  * Calculate approximate byte size of a string
@@ -224,9 +241,30 @@ export const storage = {
         return null;
       }
     } else {
-      // Use SecureStore for mobile with chunking support
+      if (isChatPersistenceKey(key)) {
+        try {
+          const v = await AsyncStorage.getItem(key);
+          if (v != null) return v;
+          const safeKey = normalizeSecureStoreKey(key);
+          const legacy = await retrieveChunked(safeKey);
+          if (legacy != null && legacy.length > 0) {
+            await AsyncStorage.setItem(key, legacy);
+            try {
+              await removeChunked(safeKey);
+            } catch {
+              /* noop */
+            }
+          }
+          return legacy;
+        } catch (error: any) {
+          console.error('Error reading chat from AsyncStorage:', error);
+          return null;
+        }
+      }
+      // Use SecureStore for mobile with chunking support (tokens / small secrets)
       try {
-        return await retrieveChunked(key);
+        const safeKey = normalizeSecureStoreKey(key);
+        return await retrieveChunked(safeKey);
       } catch (error: any) {
         console.error('Error reading from SecureStore:', error);
         return null;
@@ -242,7 +280,17 @@ export const storage = {
         console.error('Error writing to localStorage:', error);
         throw error;
       }
+    } else if (isChatPersistenceKey(key)) {
+      try {
+        await AsyncStorage.setItem(key, value);
+        const safeKey = normalizeSecureStoreKey(key);
+        await removeChunked(safeKey);
+      } catch (error: any) {
+        console.error('Error writing chat to AsyncStorage:', error);
+        throw error;
+      }
     } else {
+      const safeKey = normalizeSecureStoreKey(key);
       // Try to compress JSON data if it's too large
       const sizeInBytes = getStringByteSize(value);
       let finalValue = value;
@@ -263,8 +311,8 @@ export const storage = {
       if (finalSize > SECURE_STORE_MAX_SIZE) {
         // Store using chunking mechanism
         try {
-          await storeChunked(key, finalValue);
-          console.log(`Stored ${key} in ${Math.ceil(finalSize / CHUNK_SIZE)} chunks (${finalSize} bytes total)`);
+          await storeChunked(safeKey, finalValue);
+          console.log(`Stored ${safeKey} in ${Math.ceil(finalSize / CHUNK_SIZE)} chunks (${finalSize} bytes total)`);
         } catch (error: any) {
           console.error('Error writing chunked data to SecureStore:', error);
           throw error;
@@ -273,9 +321,9 @@ export const storage = {
         // Store normally for small values
         try {
           // First, clean up any existing chunks
-          await removeChunked(key);
+          await removeChunked(safeKey);
           // Then store as single value
-          await SecureStore.setItemAsync(key, finalValue);
+          await SecureStore.setItemAsync(safeKey, finalValue);
         } catch (error: any) {
           console.error('Error writing to SecureStore:', error);
           throw error;
@@ -291,10 +339,18 @@ export const storage = {
       } catch (error) {
         console.error('Error removing from localStorage:', error);
       }
+    } else if (isChatPersistenceKey(key)) {
+      try {
+        await AsyncStorage.removeItem(key);
+        await removeChunked(normalizeSecureStoreKey(key));
+      } catch {
+        /* noop */
+      }
     } else {
       // Use SecureStore for mobile with chunking support
       try {
-        await removeChunked(key);
+        const safeKey = normalizeSecureStoreKey(key);
+        await removeChunked(safeKey);
       } catch (error) {
         // Ignore errors - key might not exist
         console.warn('Error removing from SecureStore (key may not exist):', error);

@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Brain, Check, Star, User } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import { Brain, Check, Star, User as UserIcon } from 'lucide-react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,35 +12,216 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+  ArtisticDescriptionPayload,
+  generateArtisticDescription,
+  getUserTestResults,
+  invalidateArtisticDescriptionCache,
+} from '@/api/client';
 import { BottomNavigation } from '../src/components/BottomNavigation';
 import { NavigationBar } from '../src/components/NavigationBar';
+import { DimensionSelectorTabs } from '../src/components/test-results/DimensionSelectorTabs';
+import { SelectedDimensionDetailsBlock } from '../src/components/test-results/SelectedDimensionDetailsBlock';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
-import { useAuth } from '../src/contexts/AuthContext';
 import {
-  AB5C_SUBFACET_ORDER,
   DIMENSION_NAMES,
   orderedDimensionKeys,
-  SUBFACET_INFO
 } from '../src/constants/oceanTestCopy';
-import { getUserTestResults, generateArtisticDescription } from '../src/services/DL_api/api';
+import {
+  OCEAN_RESPONSE_SCALE,
+  OCEAN_SCORE_METRIC,
+  affineStored05ToLikertMean,
+  likertMeanToBarPercent,
+  type OceanScoreMetric,
+} from '../src/utils/oceanScoring';
+import { useAuth } from '../src/contexts/AuthContext';
 
 const DIMENSION_ICONS: Record<string, any> = {
   openness: Star,
   conscientiousness: Check,
-  extraversion: User,
+  extraversion: UserIcon,
   agreeableness: Star,
   neuroticism: Brain
 };
 
-/** Cuántas subfacetas mostrar antes del botón "Ver más". */
-const SUBFACETS_PREVIEW_COUNT = 3;
-
+/** Rangos cualitativos sobre media Likert 1–5 (IPIP / Mini-IPIP). */
 function getScoreLabel(score: number): { label: string; description: string } {
-  if (score >= 4.2) return { label: 'Alto', description: 'Tienes un nivel muy alto' };
-  if (score >= 3.5) return { label: 'Moderado-Alto', description: 'Tienes un nivel moderado-alto' };
-  if (score >= 2.5) return { label: 'Moderado', description: 'Tienes un nivel moderado' };
-  if (score >= 1.5) return { label: 'Bajo-Moderado', description: 'Tienes un nivel bajo-moderado' };
-  return { label: 'Bajo', description: 'Tienes un nivel bajo' };
+  if (score >= 4.25) return { label: 'Alto', description: 'Tienes una media alta en este rasgo' };
+  if (score >= 3.55) return { label: 'Moderado-Alto', description: 'Tienes una media moderadamente alta' };
+  if (score >= 2.75) return { label: 'Moderado', description: 'Tienes una media cercana al punto medio del 1–5' };
+  if (score >= 2.05) return { label: 'Bajo-Moderado', description: 'Tienes una media moderadamente baja' };
+  return { label: 'Bajo', description: 'Tienes una media baja en este rasgo' };
+}
+
+function normalizeLegacyScores(scores: any, scoreMetric: OceanScoreMetric) {
+  const dimensions: Record<string, number> = {};
+  const subfacets: Record<string, Record<string, number[]>> = {};
+
+  if (!scores || typeof scores !== 'object') {
+    return { dimensions, subfacets };
+  }
+
+  Object.keys(scores).forEach((dimension) => {
+    const scoreObj = scores[dimension];
+    if (!scoreObj || typeof scoreObj.total !== 'number') return;
+
+    dimensions[dimension] =
+      scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+        ? scoreObj.total
+        : affineStored05ToLikertMean(scoreObj.total);
+    const facetKeys = Object.keys(scoreObj).filter(
+      (key) => key !== 'total' && typeof scoreObj[key] === 'number'
+    );
+
+    if (!facetKeys.length) return;
+
+    subfacets[dimension] = {};
+    facetKeys.forEach((key) => {
+      const stored = scoreObj[key];
+      const likertFacet =
+        scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+          ? stored
+          : affineStored05ToLikertMean(stored);
+      subfacets[dimension][key] = [likertFacet];
+    });
+  });
+
+  return { dimensions, subfacets };
+}
+
+/** Parte el texto del modelo en bloques legibles (párrafos o frases largas). */
+function splitArtisticDescriptionText(text: string): string[] {
+  const trimmed = text?.trim();
+  if (!trimmed) return [];
+
+  const byParagraphs = trimmed.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
+  if (byParagraphs.length > 1) {
+    return byParagraphs.flatMap((p) => chunkLongParagraph(p));
+  }
+
+  const lines = trimmed.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  if (lines.length > 1) {
+    return lines.flatMap((p) => chunkLongParagraph(p));
+  }
+
+  return chunkLongParagraph(trimmed);
+}
+
+function chunkLongParagraph(text: string, maxLen = 420): string[] {
+  if (text.length <= maxLen) return [text];
+
+  const sentences = text.split(/(?<=[.!?¿¡])\s+/).filter(Boolean);
+  if (sentences.length <= 1) return [text];
+
+  const chunks: string[] = [];
+  let cur = '';
+  for (const s of sentences) {
+    const next = cur ? `${cur} ${s}` : s;
+    if (next.length > maxLen && cur) {
+      chunks.push(cur.trim());
+      cur = s;
+    } else {
+      cur = next;
+    }
+  }
+  if (cur) chunks.push(cur.trim());
+  return chunks.length ? chunks : [text];
+}
+
+function isBulletLine(line: string): boolean {
+  return /^\s*([•*-]|\d+[.)])\s/.test(line);
+}
+
+function stripBulletPrefix(line: string): string {
+  return line.replace(/^\s*([•*-]|\d+[.)])\s*/, '').trim();
+}
+
+function ArtisticDescriptionBody({ description }: { description: string }) {
+  const blocks = splitArtisticDescriptionText(description ?? '');
+  if (!blocks.length) return null;
+  return (
+    <>
+      {blocks.map((block, blockIndex) => {
+        const lines = block.includes('\n')
+          ? block.split(/\n/).map((l) => l.trim()).filter(Boolean)
+          : [block];
+
+        const hasBullets = lines.length > 1 && lines.some(isBulletLine);
+        if (hasBullets) {
+          return (
+            <View key={`b-${blockIndex}`} className="mb-5 gap-2.5">
+              {lines.map((line, j) =>
+                isBulletLine(line) ? (
+                  <View key={j} className="flex-row gap-3 pl-0.5">
+                    <Text className="pt-0.5 text-base text-purple-400">•</Text>
+                    <Text className="min-w-0 flex-1 text-[15px] leading-[24px] text-slate-200">
+                      {stripBulletPrefix(line)}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text key={j} className="text-[15px] leading-[24px] text-slate-200">
+                    {line}
+                  </Text>
+                )
+              )}
+            </View>
+          );
+        }
+
+        return (
+          <Text
+            key={`b-${blockIndex}`}
+            className="mb-5 text-[15px] leading-[24px] text-slate-200"
+          >
+            {block}
+          </Text>
+        );
+      })}
+    </>
+  );
+}
+
+function normalizeTestResult(rawResult: any) {
+  const responseScale =
+    rawResult?.responseScale === OCEAN_RESPONSE_SCALE.IPIP_1_5
+      ? OCEAN_RESPONSE_SCALE.IPIP_1_5
+      : OCEAN_RESPONSE_SCALE.LEGACY_NEG2_POS2;
+  const scoreMetric: OceanScoreMetric =
+    rawResult?.scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+      ? OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+      : OCEAN_SCORE_METRIC.DISPLAY_AFFINE_05;
+
+  if (
+    rawResult?.dimensions &&
+    typeof rawResult.dimensions === 'object' &&
+    Object.keys(rawResult.dimensions).length > 0
+  ) {
+    const hasSubfacets =
+      rawResult.subfacets &&
+      typeof rawResult.subfacets === 'object' &&
+      Object.keys(rawResult.subfacets).length > 0;
+    const normalized: any = {
+      dimensions: rawResult.dimensions,
+      testType: hasSubfacets ? 'deep' : rawResult.testType || 'quick',
+      timestamp: rawResult.timestamp || rawResult.updatedAt || rawResult.createdAt,
+      responseScale,
+      scoreMetric,
+    };
+    if (hasSubfacets) normalized.subfacets = rawResult.subfacets;
+    return normalized;
+  }
+
+  const { dimensions, subfacets } = normalizeLegacyScores(rawResult?.scores, scoreMetric);
+  const hasLegacySubfacets = Object.keys(subfacets).length > 0;
+  const normalized: any = {
+    dimensions,
+    testType: hasLegacySubfacets ? 'deep' : rawResult?.testType || 'quick',
+    timestamp: rawResult?.timestamp || rawResult?.updatedAt || rawResult?.createdAt,
+    responseScale,
+    scoreMetric,
+  };
+  if (hasLegacySubfacets) normalized.subfacets = subfacets;
+  return normalized;
 }
 
 export default function TestResultsScreen() {
@@ -50,32 +231,38 @@ export default function TestResultsScreen() {
   const [selectedDimension, setSelectedDimension] = useState<string>('openness');
   /** Listado largo de subfacetas: preview corto hasta pulsar "Ver más". */
   const [subfacetsShowAll, setSubfacetsShowAll] = useState(false);
-  /** Vista principal: puntuaciones del test vs. texto IA del perfil artístico. */
+  /** Vista principal: puntuaciones del test vs. tu análisis de personalidad. */
   const [resultsView, setResultsView] = useState<'bigFive' | 'artistic'>('bigFive');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any>({});
-  const [artisticProfile, setArtisticProfile] = useState<{
-    description: string;
-    recommendations: string[];
-  } | null>(null);
+  const [artisticProfile, setArtisticProfile] = useState<ArtisticDescriptionPayload | null>(null);
   const [generatingDescription, setGeneratingDescription] = useState(false);
+  const artisticGenInFlight = useRef(false);
 
-  // Function to generate artistic description using AI agent
-  const generateArtisticDescriptionForUser = useCallback(async (userId: string) => {
-    // Prevent multiple calls
-    if (generatingDescription || artisticProfile) return;
-    
+  /**
+   * Obtiene/genera tu análisis de personalidad. El servidor solo llama al modelo cuando no hay análisis guardado
+   * para el resultado actual del test (p. ej. tras guardar o rehacer el test — saveTestResults lo borra).
+   * force: solo para una acción explícita "regenerar" (elimina el guardado en servidor); no usar tras cada entrada con params.
+   */
+  const generateArtisticDescriptionForUser = useCallback(async (userId: string, force = false) => {
+    if (artisticGenInFlight.current) return;
+    artisticGenInFlight.current = true;
+    if (force) {
+      invalidateArtisticDescriptionCache(userId);
+      setArtisticProfile(null);
+    }
     setGeneratingDescription(true);
     try {
-      const description = await generateArtisticDescription(userId);
+      const description = await generateArtisticDescription(userId, { force });
       setArtisticProfile(description);
     } catch (error: any) {
       console.error('Error generating artistic description:', error);
       setArtisticProfile(null);
     } finally {
+      artisticGenInFlight.current = false;
       setGeneratingDescription(false);
     }
-  }, []); // Removed generatingDescription from dependencies to prevent loop
+  }, []);
 
   // Load results from params or API
   useEffect(() => {
@@ -83,12 +270,13 @@ export default function TestResultsScreen() {
       // If results are in params, use them
       if (params.results) {
         try {
-          const parsedResults = JSON.parse(params.results as string);
+          const parsedResults = normalizeTestResult(JSON.parse(params.results as string));
           setArtisticProfile(null);
           setResults(parsedResults);
-          // Generate artistic description if user is logged in (DB y caché ya sin texto viejo tras save)
+          // Tras guardar el test en servidor: forzar regeneración de análisis + invalidación de feed en API (forceRegenerate).
           if (user?._id) {
-            generateArtisticDescriptionForUser(user._id);
+            const forceRegenerate = String(params.regenerateProfile || '') === '1';
+            generateArtisticDescriptionForUser(user._id, forceRegenerate);
           }
           return;
         } catch (error) {
@@ -109,118 +297,21 @@ export default function TestResultsScreen() {
               return tb - ta;
             });
             const latestResult = sorted[0];
-
-            let resultData: any;
-
-            // Formato normalizado desde el backend (GET /ocean/user/:userId)
-            if (
-              latestResult.dimensions &&
-              typeof latestResult.dimensions === 'object' &&
-              Object.keys(latestResult.dimensions).length > 0
-            ) {
-              const hasSubfacets =
-                latestResult.subfacets &&
-                typeof latestResult.subfacets === 'object' &&
-                Object.keys(latestResult.subfacets).length > 0;
-              const testType =
-                hasSubfacets ? 'deep' : latestResult.testType || 'quick';
-
-              resultData = {
-                dimensions: latestResult.dimensions,
-                testType,
-                timestamp: latestResult.timestamp || latestResult.updatedAt || latestResult.createdAt
-              };
-              if (hasSubfacets) {
-                resultData.subfacets = latestResult.subfacets;
-              }
-            } else {
-              // Legado: scores anidados (total + subfacetas en 0–5)
-              const dimensions: Record<string, number> = {};
-              const subfacets: Record<string, Record<string, number[]>> = {};
-
-              if (latestResult.scores) {
-                Object.keys(latestResult.scores).forEach((dimension) => {
-                  const scoreObj = latestResult.scores[dimension];
-                  if (scoreObj && typeof scoreObj.total === 'number') {
-                    dimensions[dimension] = scoreObj.total;
-
-                    if (scoreObj) {
-                      const facetKeys = Object.keys(scoreObj).filter(
-                        (key) => key !== 'total' && typeof scoreObj[key] === 'number'
-                      );
-                      if (facetKeys.length > 0) {
-                        subfacets[dimension] = {};
-                        facetKeys.forEach((key) => {
-                          const normalizedValue = scoreObj[key];
-                          const originalValue = ((normalizedValue / 5) * 4) - 2;
-                          subfacets[dimension][key] = [originalValue];
-                        });
-                      }
-                    }
-                  }
-                });
-              }
-
-              const hasLegacySubfacets = Object.keys(subfacets).length > 0;
-              resultData = {
-                dimensions,
-                testType: hasLegacySubfacets ? 'deep' : latestResult.testType || 'quick',
-                timestamp: latestResult.updatedAt || latestResult.createdAt
-              };
-
-              if (hasLegacySubfacets) {
-                resultData.subfacets = subfacets;
-              }
-            }
+            const resultData = normalizeTestResult(latestResult);
 
             setResults(resultData);
-            
-            // Generate artistic description using AI agent
+            setArtisticProfile(null);
+
             if (user._id) {
-              generateArtisticDescriptionForUser(user._id);
+              generateArtisticDescriptionForUser(user._id, false);
             }
           } else if (apiResults && !Array.isArray(apiResults) && apiResults.scores) {
-            // Single result object with scores
-            const dimensions: Record<string, number> = {};
-            const subfacets: Record<string, Record<string, number[]>> = {};
-            
-            Object.keys(apiResults.scores).forEach((dimension) => {
-              const scoreObj = apiResults.scores[dimension];
-              if (scoreObj && typeof scoreObj.total === 'number') {
-                dimensions[dimension] = scoreObj.total;
-
-                if (scoreObj) {
-                  const facetKeys = Object.keys(scoreObj).filter(
-                    (key) => key !== 'total' && typeof scoreObj[key] === 'number'
-                  );
-                  if (facetKeys.length > 0) {
-                    subfacets[dimension] = {};
-                    facetKeys.forEach((key) => {
-                      const normalizedValue = scoreObj[key];
-                      const originalValue = ((normalizedValue / 5) * 4) - 2;
-                      subfacets[dimension][key] = [originalValue];
-                    });
-                  }
-                }
-              }
-            });
-
-            const hasSingleSubfacets = Object.keys(subfacets).length > 0;
-            const resultData: any = {
-              dimensions,
-              testType: hasSingleSubfacets ? 'deep' : apiResults.testType || 'quick',
-              timestamp: apiResults.updatedAt || apiResults.createdAt
-            };
-
-            if (hasSingleSubfacets) {
-              resultData.subfacets = subfacets;
-            }
-            
+            const resultData = normalizeTestResult(apiResults);
             setResults(resultData);
-            
-            // Generate artistic description using AI agent
+            setArtisticProfile(null);
+
             if (user._id) {
-              generateArtisticDescriptionForUser(user._id);
+              generateArtisticDescriptionForUser(user._id, false);
             }
           } else {
             Alert.alert('Sin resultados', 'No se encontraron resultados del test.');
@@ -244,7 +335,6 @@ export default function TestResultsScreen() {
     setSubfacetsShowAll(false);
   }, [selectedDimension]);
 
-  // Scores already come in 0-5 scale
   const normalizedDimensions: Record<string, number> = results.dimensions || {};
   const dimensionKeysInOrder = orderedDimensionKeys(normalizedDimensions);
 
@@ -317,7 +407,7 @@ export default function TestResultsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Conmutador: por defecto Big Five; perfil artístico aparte */}
+            {/* Conmutador: por defecto Big Five; análisis de personalidad aparte */}
             <View className="mb-6 flex-row rounded-xl border border-slate-700/60 bg-slate-900/70 p-1">
               <TouchableOpacity
                 onPress={() => setResultsView('bigFive')}
@@ -344,46 +434,53 @@ export default function TestResultsScreen() {
                     resultsView === 'artistic' ? 'text-white' : 'text-slate-400'
                   }`}
                 >
-                  Perfil artístico
+                  Análisis de personalidad
                 </Text>
               </TouchableOpacity>
             </View>
 
             {resultsView === 'artistic' && (
-            <View className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-800/90 p-6 shadow-xl">
-              <View className="mb-3 flex-row items-center gap-2">
-                <Text className="text-xl font-bold text-white">Tu Perfil Artístico</Text>
-                {generatingDescription && (
-                  <ActivityIndicator size="small" color="#a855f7" />
-                )}
-                {artisticProfile && (
-                  <View className="rounded bg-purple-500/20 px-2 py-1">
-                    <Text className="text-xs font-semibold text-purple-400">IA</Text>
+            <View className="mb-6 overflow-hidden rounded-2xl border border-purple-500/20 bg-slate-900/80 shadow-xl">
+              <View className="border-b border-white/10 bg-violet-950/55 px-5 py-4">
+                <View className="flex-row items-center gap-3">
+                  <View className="min-w-0 flex-1">
+                    <View className="mb-1 flex-row flex-wrap items-center gap-2">
+                      {generatingDescription && (
+                        <ActivityIndicator size="small" color="#c4b5fd" />
+                      )}
+                      {artisticProfile ? (
+                        <View className="rounded-full border border-purple-400/40 bg-purple-500/25 px-2.5 py-1">
+                          <Text className="text-[11px] font-bold tracking-wide text-purple-100">
+                            IA
+                          </Text>
+                        </View>
+                      ) : null}
+                      <Text className="text-base font-semibold tracking-tight text-white">
+                        Generado a partir de tus puntuaciones.
+                      </Text>
+                    </View>
                   </View>
+                </View>
+              </View>
+
+              <View className="px-5 pb-6 pt-5">
+                {generatingDescription && !artisticProfile ? (
+                  <View className="items-center py-6">
+                    <ActivityIndicator size="large" color="#a855f7" />
+                    <Text className="mt-3 text-center text-[15px] text-slate-400">
+                      Generando descripción personalizada...
+                    </Text>
+                  </View>
+                ) : artisticProfile ? (
+                  <ArtisticDescriptionBody description={artisticProfile.description} />
+                ) : (
+                  <Text className="text-[15px] leading-6 text-slate-400">
+                    {user?._id
+                      ? 'No se pudo generar la descripción personalizada en este momento. Vuelve a intentar más tarde o revisa tus puntuaciones en Big Five.'
+                      : 'Inicia sesión para obtener una descripción personalizada basada en tus resultados. Mientras tanto puedes revisar tus puntuaciones en Big Five.'}
+                  </Text>
                 )}
               </View>
-              {generatingDescription && !artisticProfile ? (
-                <View className="items-center py-4">
-                  <ActivityIndicator size="large" color="#a855f7" />
-                  <Text className="mt-2 text-slate-400">Generando descripción personalizada...</Text>
-                </View>
-              ) : artisticProfile ? (
-                <>
-                  <Text className="mb-4 leading-6 text-slate-300">{artisticProfile.description}</Text>
-                  {artisticProfile.recommendations && artisticProfile.recommendations.length > 0 && (
-                    <View>
-                      <Text className="mb-2 text-sm text-slate-400">Te recomendamos:</Text>
-                      <Text className="text-slate-300">{artisticProfile.recommendations.join(', ')}.</Text>
-                    </View>
-                  )}
-                </>
-              ) : (
-                <Text className="leading-6 text-slate-400">
-                  {user?._id
-                    ? 'No se pudo generar la descripción personalizada en este momento. Vuelve a intentar más tarde o revisa tus puntuaciones en Big Five.'
-                    : 'Inicia sesión para obtener una descripción personalizada basada en tus resultados. Mientras tanto puedes revisar tus puntuaciones en Big Five.'}
-                </Text>
-              )}
             </View>
             )}
 
@@ -391,14 +488,14 @@ export default function TestResultsScreen() {
             <View className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-800/90 p-6 shadow-xl">
               <Text className="mb-1 text-xl font-bold text-white">Los Big Five</Text>
               <Text className="mb-5 text-xs text-slate-500">
-                Escala 0–5. Barras por rasgo; más abajo elige un rasgo para leer el detalle y las facetas.
+                Media Likert 1–5 por rasgo (ítems recodificados al estilo IPIP). Elige un rasgo abajo para facetas AB5C.
               </Text>
               <View className="gap-5">
                 {dimensionKeysInOrder.map((key) => {
                   const score = normalizedDimensions[key];
                   const dimInfo = DIMENSION_NAMES[key];
                   if (dimInfo === undefined) return null;
-                  const pct = Math.min(100, Math.max(0, (score / 5) * 100));
+                  const pct = likertMeanToBarPercent(score);
                   return (
                     <View key={key}>
                       <View className="flex-row items-stretch gap-3">
@@ -412,7 +509,7 @@ export default function TestResultsScreen() {
                               {dimInfo.es}
                             </Text>
                             <Text className="shrink-0 text-lg font-bold tabular-nums text-white">
-                              {score.toFixed(1)}
+                              {score.toFixed(2)}
                             </Text>
                           </View>
                           <View className="mt-2.5 h-4 overflow-hidden rounded-full bg-slate-700/85">
@@ -433,194 +530,22 @@ export default function TestResultsScreen() {
               </View>
 
               <View className="mt-8 border-t border-slate-700/60 pt-6">
-                <View className="mb-6 flex-row gap-1">
-                  {dimensionKeysInOrder.map((key) => {
-                    const dimInfo = DIMENSION_NAMES[key];
-                    if (dimInfo === undefined) return null;
-                    const Icon = DIMENSION_ICONS[key] || Star;
-                    const isSelected = selectedDimension === key;
-                    return (
-                      <TouchableOpacity
-                        key={key}
-                        onPress={() => setSelectedDimension(key)}
-                        className={`min-w-0 flex-1 items-center justify-center rounded-lg py-2 px-0.5 ${
-                          isSelected ? 'bg-purple-600' : 'bg-slate-700/50'
-                        }`}
-                      >
-                        <Icon size={17} color={isSelected ? 'white' : '#94a3b8'} />
-                        <Text
-                          className={`mt-1 text-center text-[9px] leading-[11px] ${
-                            isSelected ? 'text-white' : 'text-slate-400'
-                          }`}
-                          numberOfLines={3}
-                        >
-                          {dimInfo.es}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                <DimensionSelectorTabs
+                  dimensionKeysInOrder={dimensionKeysInOrder}
+                  selectedDimension={selectedDimension}
+                  setSelectedDimension={setSelectedDimension}
+                  dimensionIcons={DIMENSION_ICONS}
+                />
 
-              {/* Selected Dimension Details */}
-              {selectedDimension && normalizedDimensions[selectedDimension] !== undefined && (
-                <View>
-                  <View className="flex-row items-center gap-2 mb-4">
-                    <Star size={24} color={DIMENSION_NAMES[selectedDimension].color} />
-                    <Text className="text-xl font-bold text-white">
-                      {DIMENSION_NAMES[selectedDimension].es}
-                    </Text>
-                  </View>
-                  
-                  <Text className="text-slate-300 mb-4 leading-6">
-                    {DIMENSION_NAMES[selectedDimension].descripcion}
-                  </Text>
-              
-
-                  {/* Puntuación del rasgo  */}
-                  {(() => {
-                    const scoreVal = normalizedDimensions[selectedDimension];
-                    const dim = DIMENSION_NAMES[selectedDimension];
-                    const scoreLabel = getScoreLabel(scoreVal);
-                    return (
-                      <View
-                        className="mb-2 overflow-hidden rounded-xl border border-slate-600/35 bg-slate-900/45"
-                        style={{ borderLeftWidth: 4, borderLeftColor: dim.color }}
-                      >
-                        <View className="flex-row items-center gap-4 p-4">
-                          <View>
-                            <Text className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                              Puntuación
-                            </Text>
-                            <Text className="text-3xl font-bold text-white">
-                              {scoreVal.toFixed(1)}
-                              <Text className="text-lg font-semibold text-slate-500">/5</Text>
-                            </Text>
-                          </View>
-                          <View className="min-w-0 flex-1 border-l border-slate-600/50 pl-4">
-                            <View className="mb-1.5 self-start rounded-md bg-slate-800/90 px-2.5 py-1">
-                              <Text className="text-xs font-semibold" style={{ color: dim.color }}>
-                                {scoreLabel.label}
-                              </Text>
-                            </View>
-                            <Text className="text-sm leading-5 text-slate-300">
-                              {scoreLabel.description} en {dim.es.toLowerCase()}.
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  })()}
-
-                  {/* Subfacets (only for deep test): preview + "Ver más" */}
-                  {isDeep && results.subfacets && results.subfacets[selectedDimension] && (
-                    <View className="rounded-xl border border-slate-600/40 bg-slate-900/40 p-4">
-                      <Text className="text-white font-semibold text-base mb-1">Facetas AB5C</Text>
-                      <Text className="text-slate-500 text-xs mb-3 leading-5">
-                        Cada tarjeta es una subfaceta del modelo IPIP (AB5C). La barra resume tu puntuación en 0–5.
-                      </Text>
-                      {(() => {
-                        const order = AB5C_SUBFACET_ORDER[selectedDimension] || [];
-                        const entries = Object.entries(results.subfacets[selectedDimension] as Record<string, number[]>);
-                        const sorted = [...entries].sort(([a], [b]) => {
-                          const ia = order.indexOf(a);
-                          const ib = order.indexOf(b);
-                          if (ia === -1 && ib === -1) return a.localeCompare(b);
-                          if (ia === -1) return 1;
-                          if (ib === -1) return -1;
-                          return ia - ib;
-                        });
-                        const dimColor = DIMENSION_NAMES[selectedDimension].color;
-                        const total = sorted.length;
-                        const hasMore = total > SUBFACETS_PREVIEW_COUNT;
-                        const visible = subfacetsShowAll
-                          ? sorted
-                          : sorted.slice(0, SUBFACETS_PREVIEW_COUNT);
-                        const restCount = total - SUBFACETS_PREVIEW_COUNT;
-
-                        return (
-                          <>
-                            <View className="gap-1">
-                              {visible.map(([subfacet, scores]: [string, number[]]) => {
-                                const average =
-                                  scores.reduce((sum: number, val: number) => sum + val, 0) / scores.length;
-                                const normalizedScore = ((average + 2) / 4) * 5;
-                                const info = SUBFACET_INFO[subfacet];
-                                const subfacetName = info?.label ?? subfacet;
-                                const subfacetDesc = info?.descripcion;
-                                const pct = (normalizedScore / 5) * 100;
-
-                                return (
-                                  <View
-                                    key={subfacet}
-                                    className="overflow-hidden rounded-xl border border-slate-600/35 bg-slate-800/60"
-                                  >
-                                    <View
-                                      className="flex-row"
-                                      style={{ borderLeftWidth: 4, borderLeftColor: dimColor }}
-                                    >
-                                      <View className="flex-1 p-3">
-                                        <View className="flex-row items-start justify-between gap-2">
-                                          <View className="min-w-0 flex-1 pr-1">
-                                            <Text className="text-base font-semibold leading-snug text-white">
-                                              {subfacetName}
-                                            </Text>
-                                            {subfacetDesc ? (
-                                              <Text className="mt-1.5 text-xs leading-5 text-slate-400">
-                                                {subfacetDesc}
-                                              </Text>
-                                            ) : null}
-                                          </View>
-                                          <View className="shrink-0 items-end rounded-lg border border-slate-600/50 bg-slate-900/80 px-2 py-1.5">
-                                            <Text className="text-lg font-bold leading-none text-white">
-                                              {normalizedScore.toFixed(1)}
-                                            </Text>
-                                            <Text className="text-[10px] text-slate-500">de 5</Text>
-                                          </View>
-                                        </View>
-                                        <View className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-700/90">
-                                          <View
-                                            className="h-full rounded-full"
-                                            style={{
-                                              width: `${pct}%`,
-                                              backgroundColor: dimColor
-                                            }}
-                                          />
-                                        </View>
-                                      </View>
-                                    </View>
-                                  </View>
-                                );
-                              })}
-                            </View>
-                            {hasMore ? (
-                              <TouchableOpacity
-                                className="mt-2 rounded-xl border border-slate-600/60 bg-slate-800/70 py-3.5"
-                                onPress={() => setSubfacetsShowAll((v) => !v)}
-                                activeOpacity={0.75}
-                              >
-                                <Text className="text-center text-sm font-semibold text-purple-300">
-                                  {subfacetsShowAll
-                                    ? 'Mostrar menos'
-                                    : `Ver ${restCount} ${restCount === 1 ? 'faceta más' : 'facetas más'}`}
-                                </Text>
-                              </TouchableOpacity>
-                            ) : null}
-                          </>
-                        );
-                      })()}
-                    </View>
-                  )}
-
-                  {!isDeep && (
-                    <View className="mt-4 p-4 bg-slate-700/50 rounded-xl">
-                      <Text className="text-slate-300 text-sm">
-                        Realiza el <Text className="font-bold underline">Análisis Profundo</Text> para ver las{' '}
-                        {AB5C_SUBFACET_ORDER.openness.length} facetas AB5C por rasgo (modelo IPIP).
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
+              <SelectedDimensionDetailsBlock
+                selectedDimension={selectedDimension}
+                normalizedDimensions={normalizedDimensions}
+                isDeep={isDeep}
+                subfacets={results.subfacets}
+                subfacetsShowAll={subfacetsShowAll}
+                setSubfacetsShowAll={setSubfacetsShowAll}
+                getScoreLabel={getScoreLabel}
+              />
               </View>
             </View>
             )}

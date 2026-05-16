@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { BackgroundLayout } from "../src/components/ui/BackgroundLayout";
 import { Button } from "../src/components/ui/button";
 import { Input } from "../src/components/ui/input";
-import { checkPasswordResetToken, resetPassword } from "../src/services/DL_api/api";
+import { checkPasswordResetToken, resetPassword } from '@/api/client';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();

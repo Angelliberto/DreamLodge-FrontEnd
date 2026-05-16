@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { Book, Brain, Film, Gamepad2, Heart, Music2, Palette, Shield, Sparkles } from 'lucide-react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ProfileHeader } from '@/components/ProfileHeader';
+import { Bookmark, Brain, EyeOff, Heart, Sparkles } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,143 +16,58 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomNavigation } from '../src/components/BottomNavigation';
 import { NavigationBar } from '../src/components/NavigationBar';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
-import { OptimizedImage } from '../src/components/ui/OptimizedImage';
+import { CulturalGridItem } from '../src/components/cultural/CulturalGridItem';
+import { DIMENSION_NAMES } from '../src/constants/oceanTestCopy';
+import {
+  OCEAN_SCORE_METRIC,
+  affineStored05ToLikertMean,
+  likertMeanToBarPercent,
+  type OceanScoreMetric,
+} from '../src/utils/oceanScoring';
 import { useAuth } from '../src/contexts/AuthContext';
-import { getFavorites, getPending, getUserTestResults } from '../src/services/DL_api/api';
-import { CulturalItem } from '../src/types/CulturalItem';
+import {
+  getFavorites,
+  getNotInterested,
+  getPending,
+  getUserTestResults,
+  invalidateUserArtworkListCaches,
+} from '@/api/client';
+import { CulturalItem } from '@/types/CulturalItem';
 
-const DIMENSION_NAMES: Record<string, { es: string; color: string }> = {
-  openness: { es: 'Apertura', color: '#ec4899' },
-  conscientiousness: { es: 'Responsabilidad', color: '#22c55e' },
-  extraversion: { es: 'Extraversión', color: '#3b82f6' },
-  agreeableness: { es: 'Amabilidad', color: '#f97316' },
-  neuroticism: { es: 'Neuroticismo', color: '#a855f7' }
-};
+type ProfileTab = 'favorites' | 'pending' | 'notInterested';
+type SortMode = 'recent' | 'type' | 'author' | 'title';
+type SortDirection = 'desc' | 'asc';
+const LOAD_BATCH_SIZE = 9;
 
-function getProfileDescription(dimensions: Record<string, number>): { profile: string; description: string } {
-  const openness = (dimensions.openness || 0) / 20;
-  const extraversion = (dimensions.extraversion || 0) / 20;
-  const neuroticism = (dimensions.neuroticism || 0) / 20;
-
-  if (openness > 4 && neuroticism > 3.5) {
-    return {
-      profile: 'Existencial',
-      description: 'Buscas obras que cuestionen la existencia'
-    };
-  } else if (openness > 3.5 && extraversion < 2) {
-    return {
-      profile: 'Contemplativo',
-      description: 'Prefieres experiencias que invitan a la reflexión'
-    };
-  } else if (openness > 4) {
-    return {
-      profile: 'Explorador',
-      description: 'Te encanta descubrir nuevas formas de expresión'
-    };
-  } else {
-    return {
-      profile: 'Equilibrado',
-      description: 'Tienes un perfil artístico balanceado'
-    };
+function getItemTime(item: CulturalItem): number {
+  const anyItem = item as any;
+  const raw = anyItem?.createdAt || anyItem?.updatedAt || '';
+  if (raw) {
+    const t = new Date(raw).getTime();
+    if (Number.isFinite(t)) return t;
   }
+  return 0;
 }
 
-// Memoized component for grid items
-const GridItem = React.memo(({ 
-  item, 
-  itemWidth, 
-  gap, 
-  index, 
-  onPress 
-}: { 
-  item: CulturalItem; 
-  itemWidth: number; 
-  gap: number; 
-  index: number;
-  onPress: (item: CulturalItem) => void;
-}) => {
-  const CategoryIcon = useMemo(() => {
-    switch(item.category) {
-      case 'cine': return Film;
-      case 'videojuegos': return Gamepad2;
-      case 'literatura': return Book;
-      case 'musica': return Music2;
-      case 'arte-visual': return Palette;
-      default: return Film;
-    }
-  }, [item.category]);
 
-  const categoryColor = useMemo(() => {
-    switch(item.category) {
-      case 'cine': return '#3b82f6';
-      case 'videojuegos': return '#a855f7';
-      case 'literatura': return '#facc15';
-      case 'musica': return '#22c55e';
-      case 'arte-visual': return '#f472b6';
-      default: return '#666';
-    }
-  }, [item.category]);
-
-  const isLastInRow = (index + 1) % 3 === 0;
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={() => onPress(item)}
-      style={{ 
-        width: itemWidth, 
-        marginBottom: 8,
-        marginRight: isLastInRow ? 0 : gap
-      }}
-    >
-      <View className="bg-slate-800/90 border border-slate-700/50 rounded-xl overflow-hidden">
-        <OptimizedImage 
-          source={{ uri: item.imageUrl }} 
-          style={{ width: '100%', height: 120 }} 
-          resizeMode="cover" 
-          className="bg-slate-700"
-          placeholderColor="#1e293b"
-        />
-        <View className="p-2">
-          <View className="flex-row items-center gap-1 mb-1">
-            <View 
-              style={{ backgroundColor: categoryColor }}
-              className="w-4 h-4 rounded-full items-center justify-center"
-            >
-              <CategoryIcon size={8} color="white" />
-            </View>
-            <Text className="text-slate-400 text-[10px] flex-1" numberOfLines={1}>
-              {item.category}
-            </Text>
-          </View>
-          <Text className="text-white font-semibold text-xs mb-1" numberOfLines={2}>
-            {item.title}
-          </Text>
-          <Text className="text-slate-300 text-[10px]" numberOfLines={1}>
-            {item.creator}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison to avoid unnecessary re-renders
-  return prevProps.item.id === nextProps.item.id && 
-         prevProps.itemWidth === nextProps.itemWidth &&
-         prevProps.index === nextProps.index;
-});
-
-GridItem.displayName = 'GridItem';
 
 export default function UserProfileScreen() {
   const router = useRouter();
   const { user, hasTestResults } = useAuth();
-  const [activeTab, setActiveTab] = useState<'favorites' | 'pending'>('favorites');
+  const [activeTab, setActiveTab] = useState<ProfileTab>('favorites');
+  const [sortMode, setSortMode] = useState<SortMode>('recent');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [visibleByTab, setVisibleByTab] = useState<Record<ProfileTab, number>>({
+    favorites: LOAD_BATCH_SIZE,
+    pending: LOAD_BATCH_SIZE,
+    notInterested: LOAD_BATCH_SIZE,
+  });
   const [loading, setLoading] = useState(true);
   const [testResults, setTestResults] = useState<any>(null);
   const [profile, setProfile] = useState<{ profile: string; description: string } | null>(null);
   const [favorites, setFavorites] = useState<CulturalItem[]>([]);
   const [pending, setPending] = useState<CulturalItem[]>([]);
+  const [notInterested, setNotInterested] = useState<CulturalItem[]>([]);
   const [loadingArtworks, setLoadingArtworks] = useState(false);
   const loadingArtworksRef = useRef(false); // Prevent duplicate calls
   const initialDataLoadedRef = useRef(false); // Track if initial data has been loaded
@@ -187,6 +103,10 @@ export default function UserProfileScreen() {
           if (results && Array.isArray(results) && results.length > 0) {
             const latestResult = results[0];
             let dimensions: Record<string, number> = {};
+            const scoreMetric: OceanScoreMetric =
+              latestResult.scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+                ? OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+                : OCEAN_SCORE_METRIC.DISPLAY_AFFINE_05;
 
             if (
               latestResult.dimensions &&
@@ -198,13 +118,25 @@ export default function UserProfileScreen() {
               Object.keys(latestResult.scores).forEach((dimension) => {
                 const scoreObj = latestResult.scores[dimension];
                 if (scoreObj && typeof scoreObj.total === 'number') {
-                  dimensions[dimension] = scoreObj.total;
+                  const t = scoreObj.total;
+                  dimensions[dimension] =
+                    scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+                      ? t
+                      : affineStored05ToLikertMean(t);
                 }
               });
             }
 
             setTestResults({ dimensions });
-            setProfile(getProfileDescription(dimensions));
+            const profileName = typeof latestResult?.profile === 'string' ? latestResult.profile : '';
+            const profileDescription =
+              typeof latestResult?.description === 'string' ? latestResult.description : '';
+            setProfile(
+              profileName || profileDescription
+                ? { profile: profileName || 'Análisis de personalidad', description: profileDescription || '' }
+                : null
+            );
+
           }
         }
       } catch (error) {
@@ -222,6 +154,7 @@ export default function UserProfileScreen() {
     };
   }, [user?._id, hasTestResults]);
 
+
   // Load both favorites and pending on initial mount to get accurate counts
   useEffect(() => {
     let isMounted = true;
@@ -236,16 +169,18 @@ export default function UserProfileScreen() {
       setLoadingArtworks(true);
       
       try {
-        // Load both lists in parallel to get accurate counts from the start
-        const [favs, pend] = await Promise.all([
+        // Load all lists in parallel to get accurate counts from the start
+        const [favs, pend, notInt] = await Promise.all([
           getFavorites(),
-          getPending()
+          getPending(),
+          getNotInterested()
         ]);
         
         // Only update if component is still mounted
         if (isMounted) {
           setFavorites(favs);
           setPending(pend);
+          setNotInterested(notInt);
           initialDataLoadedRef.current = true;
         }
       } catch (error) {
@@ -269,6 +204,35 @@ export default function UserProfileScreen() {
     };
   }, [user?._id]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?._id) return undefined;
+      let cancelled = false;
+      const refresh = async () => {
+        invalidateUserArtworkListCaches();
+        try {
+          const [favs, pend, notInt] = await Promise.all([
+            getFavorites(),
+            getPending(),
+            getNotInterested(),
+          ]);
+          if (!cancelled) {
+            setFavorites(favs);
+            setPending(pend);
+            setNotInterested(notInt);
+            initialDataLoadedRef.current = true;
+          }
+        } catch (error) {
+          if (!cancelled) console.error('Error refreshing profile lists on focus:', error);
+        }
+      };
+      refresh();
+      return () => {
+        cancelled = true;
+      };
+    }, [user?._id])
+  );
+
   // Silently refresh data when tab changes (uses cache, so it's instant and smooth)
   useEffect(() => {
     let isMounted = true;
@@ -288,11 +252,16 @@ export default function UserProfileScreen() {
           if (isMounted) {
             setFavorites(favs);
           }
-        } else {
+        } else if (activeTab === 'pending') {
           // Refresh pending silently (uses cache, so it's fast)
           const pend = await getPending();
           if (isMounted) {
             setPending(pend);
+          }
+        } else {
+          const notInt = await getNotInterested();
+          if (isMounted) {
+            setNotInterested(notInt);
           }
         }
       } catch (error) {
@@ -309,10 +278,149 @@ export default function UserProfileScreen() {
     };
   }, [activeTab, user?._id]);
 
+  useEffect(() => {
+    setVisibleByTab((prev) => ({
+      ...prev,
+      [activeTab]: LOAD_BATCH_SIZE,
+    }));
+  }, [activeTab, sortMode]);
+
   // Memoize counters to avoid recalculations
   const favoritesCount = useMemo(() => favorites.length, [favorites.length]);
   const pendingCount = useMemo(() => pending.length, [pending.length]);
+  const notInterestedCount = useMemo(() => notInterested.length, [notInterested.length]);
+  const totalTrackedWorks = useMemo(
+    () => favoritesCount + pendingCount + notInterestedCount,
+    [favoritesCount, pendingCount, notInterestedCount]
+  );
+  const favoriteGenreStats = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of favorites) {
+      const genres = Array.isArray(item?.metadata?.genres) ? item.metadata.genres : [];
+      for (const rawGenre of genres) {
+        const genre = String(rawGenre || '').trim();
+        if (!genre) continue;
+        counts.set(genre, (counts.get(genre) || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
+  }, [favorites]);
+  const favoriteMediaStats = useMemo(() => {
+    const labels: Record<string, string> = {
+      cine: 'Cine/Series',
+      musica: 'Música',
+      literatura: 'Literatura',
+      'arte-visual': 'Arte visual',
+      videojuegos: 'Videojuegos',
+    };
+    const counts = new Map<string, number>();
+    for (const item of favorites) {
+      const key = String(item?.category || '').trim().toLowerCase();
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([key, count]) => ({ key, label: labels[key] || key, count }));
+  }, [favorites]);
+  const sortedFavorites = useMemo(
+    () => sortItems(favorites, sortMode, sortDirection),
+    [favorites, sortMode, sortDirection]
+  );
+  const sortedPending = useMemo(
+    () => sortItems(pending, sortMode, sortDirection),
+    [pending, sortMode, sortDirection]
+  );
+  const sortedNotInterested = useMemo(
+    () => sortItems(notInterested, sortMode, sortDirection),
+    [notInterested, sortMode, sortDirection]
+  );
+  const currentItems = useMemo(() => {
+    if (activeTab === 'favorites') return sortedFavorites;
+    if (activeTab === 'pending') return sortedPending;
+    return sortedNotInterested;
+  }, [activeTab, sortedFavorites, sortedPending, sortedNotInterested]);
+  const visibleCount = visibleByTab[activeTab] || LOAD_BATCH_SIZE;
+  const visibleItems = currentItems.slice(0, visibleCount);
+  const canLoadMore = visibleCount < currentItems.length;
+  const currentCount = currentItems.length;
+  const emptyState = useMemo(() => {
+    if (activeTab === 'favorites') {
+      return {
+        icon: Heart,
+        title: 'No tienes favoritos aún',
+        subtitle: 'Explora y guarda tus obras favoritas',
+      };
+    }
+    if (activeTab === 'pending') {
+      return {
+        icon: Bookmark,
+        title: 'No tienes guardados',
+        subtitle: 'Marca obras que quieres ver después',
+      };
+    }
+    return {
+      icon: EyeOff,
+      title: 'No has ocultado ninguna obra',
+      subtitle: 'Las obras que ocultes en el feed aparecerán aquí',
+    };
+  }, [activeTab]);
 
+  const loadMoreForActiveTab = useCallback(() => {
+    setVisibleByTab((prev) => ({
+      ...prev,
+      [activeTab]: Math.min((prev[activeTab] || LOAD_BATCH_SIZE) + LOAD_BATCH_SIZE, currentItems.length),
+    }));
+  }, [activeTab, currentItems.length]);
+  const tabOptions: Array<{
+    key: ProfileTab;
+    label: string;
+    count: number;
+  }> = [
+    {
+      key: 'favorites',
+      label: 'Favoritos',
+      count: favoritesCount,
+    },
+    {
+      key: 'pending',
+      label: 'Guardados',
+      count: pendingCount,
+    },
+    {
+      key: 'notInterested',
+      label: 'Ocultar',
+      count: notInterestedCount,
+    },
+  ];
+
+  const sortOptions: Array<{
+    key: SortMode;
+    label: string;
+  }> = [
+    {
+      key: 'recent',
+      label: 'Fecha',
+    },
+    {
+      key: 'type',
+      label: 'Tipo',
+    },
+    {
+      key: 'author',
+      label: 'Autor',
+    },
+    {
+      key: 'title',
+      label: 'Título',
+    },
+  ];
+
+const activeSortLabel =
+  sortOptions.find((option) => option.key === sortMode)?.label || 'Fecha';
   // Memoize handlePress to avoid recreating the function
   const handlePress = useCallback((item: CulturalItem) => {
     const itemData = JSON.stringify(item);
@@ -349,44 +457,16 @@ export default function UserProfileScreen() {
 
         <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100 }}>
           {/* Account Info Section */}
-          <View className="px-4 pt-4 pb-4">
-            <View className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4">
-              <Text className="text-white font-bold text-lg mb-3">Usuario</Text>
-              <Text className="text-white font-semibold text-base mb-1">{user?.name || 'Usuario'}</Text>
-              <Text className="text-slate-300 text-sm mb-4">{user?.email || 'usuario@gmail.com'}</Text>
-              
-              <View className="flex-row gap-4 mb-4">
-                <View className="flex-1">
-                  <Text className="text-slate-400 text-xs mb-1">Favoritos</Text>
-                  <Text className="text-white font-semibold text-lg">{favoritesCount}</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-slate-400 text-xs mb-1">Pendientes</Text>
-                  <Text className="text-white font-semibold text-lg">{pendingCount}</Text>
-                </View>
-              </View>
-
-              <View className="border-t border-slate-700/50 pt-3 mt-2">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-2">
-                    <Shield size={16} color="#64748b" />
-                    <Text className="text-slate-400 text-xs">Autenticación de dos factores</Text>
-                  </View>
-                  <View className="flex-row items-center gap-2">
-                    <Text className="text-slate-500 text-xs">Desactivado</Text>
-                    <TouchableOpacity className="bg-purple-600/20 px-3 py-1 rounded-lg border border-purple-500/30">
-                      <Text className="text-purple-300 text-xs font-medium">Activar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
+          <ProfileHeader
+  name={user?.name || 'Usuario'}
+  email={user?.email || 'usuario@gmail.com'}
+  onPressSettings={() => router.push('/settings')}
+/>
 
           {/* Artistic Profile Section */}
           {profile && testResults && (
             <View className="px-4 pt-2 pb-4">
-              <Text className="text-white font-bold text-lg mb-3">Tu Perfil Artístico</Text>
+              <Text className="text-white font-bold text-lg mb-3">Tu análisis de personalidad</Text>
               
               <View className="flex-row gap-2 mb-3">
                 {/* Style Card */}
@@ -421,7 +501,7 @@ export default function UserProfileScreen() {
                   const dim = DIMENSION_NAMES[key];
                   if (!dim) return null;
                   const score = typeof value === 'number' ? value : 0;
-                  const percentage = (score / 5) * 100;
+                  const percentage = likertMeanToBarPercent(score);
                   
                   return (
                     <View key={key} className="mb-2">
@@ -452,126 +532,148 @@ export default function UserProfileScreen() {
           )}
 
           {/* Tabs */}
-          <View className="px-4 pt-2 pb-3">
-            <View className="flex-row bg-slate-800/40 rounded-xl p-1">
-              <TouchableOpacity
-                onPress={() => setActiveTab('favorites')}
-                className={`flex-1 py-2 rounded-lg items-center ${
-                  activeTab === 'favorites' ? 'bg-purple-600/30' : ''
-                }`}
-              >
-                <Text className={`text-sm font-medium ${
-                  activeTab === 'favorites' ? 'text-white' : 'text-slate-400'
-                }`}>
-                  Favoritos
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setActiveTab('pending')}
-                className={`flex-1 py-2 rounded-lg items-center ${
-                  activeTab === 'pending' ? 'bg-purple-600/30' : ''
-                }`}
-              >
-                <Text className={`text-sm font-medium ${
-                  activeTab === 'pending' ? 'text-white' : 'text-slate-400'
-                }`}>
-                  Pendientes
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+         {/* Library Tabs */}
+<View className="px-4 pt-2 pb-3">
+  <View className="border-b border-slate-700/60">
+    <View className="flex-row">
+      {tabOptions.map((tab) => {
+        const isActive = activeTab === tab.key;
 
+        return (
+          <TouchableOpacity
+            key={tab.key}
+            activeOpacity={0.8}
+            onPress={() => setActiveTab(tab.key)}
+            className="flex-1 items-center pb-3"
+          >
+            <Text
+              className={`text-base font-bold ${
+                isActive ? 'text-white' : 'text-slate-500'
+              }`}
+              numberOfLines={1}
+            >
+              {tab.label}
+            </Text>
+
+            <Text
+              className={`mt-1 text-xs ${
+                isActive ? 'text-purple-300' : 'text-slate-600'
+              }`}
+            >
+              {tab.count}
+            </Text>
+
+            <View
+              className={`mt-3 h-1 w-full rounded-full ${
+                isActive ? 'bg-purple-400' : 'bg-transparent'
+              }`}
+            />
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  </View>
+
+  <View className="mt-4">
+    <View className="flex-row items-center justify-between">
+      <View className="flex-1 pr-3">
+        <Text className="text-white text-lg font-bold">
+          {activeTab === 'favorites'
+            ? 'Favoritos'
+            : activeTab === 'pending'
+              ? 'Guardados'
+              : 'Ocultar'}
+        </Text>
+
+        <Text className="mt-1 text-xs text-slate-400">
+          {currentItems.length} obras · Orden: {activeSortLabel}{' '}
+          {sortDirection === 'desc' ? '↓' : '↑'}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() =>
+          setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+        }
+        className="rounded-full border border-slate-700/70 bg-slate-900/70 px-4 py-2"
+      >
+        <Text className="text-xs font-semibold text-slate-300">
+          {sortDirection === 'desc' ? 'Descendente ↓' : 'Ascendente ↑'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+
+    <View className="mt-3 flex-row flex-wrap gap-2">
+      {sortOptions.map((option) => {
+        const isActive = sortMode === option.key;
+
+        return (
+          <TouchableOpacity
+            key={option.key}
+            activeOpacity={0.85}
+            onPress={() => setSortMode(option.key)}
+            className={`rounded-full border px-3 py-1.5 ${
+              isActive
+                ? 'border-purple-500/70 bg-purple-600/25'
+                : 'border-slate-600/70 bg-slate-800/70'
+            }`}
+          >
+            <Text
+              className={`text-xs font-medium ${
+                isActive ? 'text-purple-100' : 'text-slate-300'
+              }`}
+            >
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  </View>
+</View>
+         
           {/* Artworks Grid */}
           <View className="px-4 pb-4">
-            {loadingArtworks && (favorites.length === 0 && pending.length === 0) ? (
+            {loadingArtworks && (favorites.length === 0 && pending.length === 0 && notInterested.length === 0) ? (
               <View className="items-center py-8">
                 <ActivityIndicator size="large" color="#c084fc" />
               </View>
             ) : (
               <View key={activeTab}>
-                {activeTab === 'favorites' && (
+                {currentCount === 0 ? (
+                  <View className="items-center py-8">
+                    <emptyState.icon size={48} color="#64748b" />
+                    <Text className="text-slate-400 text-sm mt-3">{emptyState.title}</Text>
+                    <Text className="text-slate-500 text-xs mt-1">{emptyState.subtitle}</Text>
+                  </View>
+                ) : (
                   <>
-                    {favoritesCount === 0 ? (
-                      <View className="items-center py-8">
-                        <Heart size={48} color="#64748b" />
-                        <Text className="text-slate-400 text-sm mt-3">No tienes favoritos aún</Text>
-                        <Text className="text-slate-500 text-xs mt-1">Explora y guarda tus obras favoritas</Text>
-                      </View>
+                    <View className="flex-row flex-wrap">
+                      {visibleItems.map((item, index) => (
+                        <CulturalGridItem
+                          key={item.id || item.originalId}
+                          item={item}
+                          itemWidth={itemWidth}
+                          gap={gap}
+                          index={index}
+                          onPress={handlePress}
+                        />
+                      ))}
+                    </View>
+                    {canLoadMore ? (
+                      <TouchableOpacity
+                        onPress={loadMoreForActiveTab}
+                        className="mt-4 rounded-xl border border-purple-500/40 bg-purple-600/20 py-3 items-center"
+                      >
+                        <Text className="text-purple-200 text-sm font-semibold">
+                          Cargar más ({visibleItems.length}/{currentItems.length})
+                        </Text>
+                      </TouchableOpacity>
                     ) : (
-                      <>
-                        <View className="flex-row flex-wrap">
-                          {favorites.slice(0, 15).map((item, index) => (
-                            <GridItem
-                              key={item.id || item.originalId}
-                              item={item}
-                              itemWidth={itemWidth}
-                              gap={gap}
-                              index={index}
-                              onPress={handlePress}
-                            />
-                          ))}
-                        </View>
-                        {favoritesCount > 15 && (
-                          <TouchableOpacity
-                            onPress={() => {
-                              // Navigate to full favorites screen
-                              // For now, we can expand or navigate to another screen
-                              router.push({
-                                pathname: '/favorites-full' as any,
-                                params: { type: 'favorites' }
-                              });
-                            }}
-                            className="mt-4 bg-purple-600/20 border border-purple-500/30 rounded-xl py-3 items-center"
-                          >
-                            <Text className="text-purple-300 font-semibold text-sm">
-                              Ver todos los favoritos ({favoritesCount})
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
-                
-                {activeTab === 'pending' && (
-                  <>
-                    {pendingCount === 0 ? (
-                      <View className="items-center py-8">
-                        <Film size={48} color="#64748b" />
-                        <Text className="text-slate-400 text-sm mt-3">No tienes pendientes</Text>
-                        <Text className="text-slate-500 text-xs mt-1">Marca obras que quieres ver después</Text>
-                      </View>
-                    ) : (
-                      <>
-                        <View className="flex-row flex-wrap">
-                          {pending.slice(0, 15).map((item, index) => (
-                            <GridItem
-                              key={item.id || item.originalId}
-                              item={item}
-                              itemWidth={itemWidth}
-                              gap={gap}
-                              index={index}
-                              onPress={handlePress}
-                            />
-                          ))}
-                        </View>
-                        {pendingCount > 15 && (
-                          <TouchableOpacity
-                            onPress={() => {
-                              // Navigate to full pending screen
-                              router.push({
-                                pathname: '/favorites-full' as any,
-                                params: { type: 'pending' }
-                              });
-                            }}
-                            className="mt-4 bg-purple-600/20 border border-purple-500/30 rounded-xl py-3 items-center"
-                          >
-                            <Text className="text-purple-300 font-semibold text-sm">
-                              Ver todos los pendientes ({pendingCount})
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </>
+                      <Text className="mt-4 text-center text-xs text-slate-500">
+                        Mostrando {visibleItems.length} obras.
+                      </Text>
                     )}
                   </>
                 )}
@@ -579,41 +681,44 @@ export default function UserProfileScreen() {
             )}
           </View>
 
-          {/* Activity Summary */}
-          <View className="px-4 pt-2 pb-6">
-            <Text className="text-white font-bold text-lg mb-3">Tu actividad</Text>
-            <View className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4">
-              <View className="mb-3">
-                <Text className="text-slate-400 text-xs mb-2">Tipos de arte explorados</Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {['Cine', 'Música', 'Literatura'].map((type, i) => (
-                    <View key={i} className="bg-purple-600/20 px-3 py-1 rounded-full border border-purple-500/30">
-                      <Text className="text-purple-300 text-xs">{type}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-
-              <View className="mb-3">
-                <Text className="text-slate-400 text-xs mb-2">Emociones frecuentes</Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {['ansiedad', 'ira', 'asombro', 'paz', 'melancolía'].map((emotion, i) => (
-                    <View key={i} className="bg-slate-700/50 px-3 py-1 rounded-full">
-                      <Text className="text-slate-300 text-xs">{emotion}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-
-              <View className="border-t border-slate-700/50 pt-3">
-                <Text className="text-slate-400 text-xs mb-1">Total de obras</Text>
-                <Text className="text-white font-bold text-2xl">5</Text>
-              </View>
-            </View>
-          </View>
         </ScrollView>
         <BottomNavigation />
       </SafeAreaView>
     </BackgroundLayout>
   );
+}
+
+function sortItems(items: CulturalItem[], mode: SortMode, direction: SortDirection): CulturalItem[] {
+  const arr = [...items];
+  const dir = direction === 'asc' ? 1 : -1;
+  if (mode === 'recent') {
+    arr.sort((a, b) => (getItemTime(a) - getItemTime(b)) * dir);
+    return arr;
+  }
+  if (mode === 'type') {
+    arr.sort((a, b) => {
+      const byCategory = String(a.category || '').localeCompare(String(b.category || ''), 'es', {
+        sensitivity: 'base',
+      });
+      if (byCategory !== 0) return byCategory * dir;
+      return (
+        String(a.title || '').localeCompare(String(b.title || ''), 'es', {
+          sensitivity: 'base',
+        }) * dir
+      );
+    });
+    return arr;
+  }
+  if (mode === 'author') {
+    arr.sort(
+      (a, b) =>
+        String(a.creator || '').localeCompare(String(b.creator || ''), 'es', { sensitivity: 'base' }) * dir
+    );
+    return arr;
+  }
+  arr.sort(
+    (a, b) =>
+      String(a.title || '').localeCompare(String(b.title || ''), 'es', { sensitivity: 'base' }) * dir
+  );
+  return arr;
 }

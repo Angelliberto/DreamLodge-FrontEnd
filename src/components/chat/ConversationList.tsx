@@ -50,7 +50,7 @@ export function ConversationList({
       </View>
 
       {/* Conversations List */}
-      <ScrollView className="flex-1">
+      <ScrollView className="flex-1" keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {conversations.length === 0 ? (
           <View className="items-center justify-center py-20 px-4">
             <MessageSquare size={48} color="#64748b" />
@@ -87,6 +87,14 @@ export function ConversationList({
                         <Text className="text-slate-400 text-xs">
                           {conversation.messageCount} mensajes
                         </Text>
+                        {(conversation.contextItems?.length ?? 0) > 0 && (
+                          <>
+                            <Text className="text-slate-500">•</Text>
+                            <Text className="text-slate-400 text-xs">
+                              {conversation.contextItems.length} en contexto
+                            </Text>
+                          </>
+                        )}
                       </View>
                       <Text className="text-slate-500 text-xs mt-1">
                         {formatDate(conversation.updatedAt)}

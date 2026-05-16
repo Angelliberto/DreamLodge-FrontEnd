@@ -1,26 +1,162 @@
 [
-  { "id": 1, "dimension": "extraversion", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "positive", "text": "Soy el alma de la fiesta." },
-  { "id": 2, "dimension": "extraversion", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "positive", "text": "Hablo con muchas personas diferentes en las fiestas." },
-  { "id": 3, "dimension": "extraversion", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "No hablo mucho." },
-  { "id": 4, "dimension": "extraversion", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "Me mantengo en segundo plano." },
-
-  { "id": 5, "dimension": "agreeableness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "positive", "text": "Me solidarizo con los sentimientos de los demás." },
-  { "id": 6, "dimension": "agreeableness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "positive", "text": "Siento las emociones de los demás." },
-  { "id": 7, "dimension": "agreeableness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "No me interesan realmente los demás." },
-  { "id": 8, "dimension": "agreeableness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "No me interesan los problemas de otras personas." },
-
-  { "id": 9, "dimension": "conscientiousness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "positive", "text": "Hago las tareas de inmediato." },
-  { "id": 10, "dimension": "conscientiousness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "positive", "text": "Me gusta el orden." },
-  { "id": 11, "dimension": "conscientiousness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "A menudo olvido poner las cosas en su lugar." },
-  { "id": 12, "dimension": "conscientiousness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "Hago un desastre de las cosas." },
-
-  { "id": 13, "dimension": "neuroticism", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "positive", "text": "Tengo cambios de humor frecuentes." },
-  { "id": 14, "dimension": "neuroticism", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "positive", "text": "Me altero con facilidad." },
-  { "id": 15, "dimension": "neuroticism", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "Estoy relajado la mayor parte del tiempo." },
-  { "id": 16, "dimension": "neuroticism", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "Rara vez me siento triste." },
-
-  { "id": 17, "dimension": "openness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "positive", "text": "Tengo una imaginación vívida." },
-  { "id": 18, "dimension": "openness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "Me cuesta entender ideas abstractas." },
-  { "id": 19, "dimension": "openness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "No me interesan las ideas abstractas." },
-  { "id": 20, "dimension": "openness", "subfacet": "mini_ipip", "medium": "mini_ipip", "keying": "negative", "text": "No tengo buena imaginación." }
+  {
+    "id": 1,
+    "dimension": "extraversion",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "positive",
+    "text": "Soy el alma de la fiesta."
+  },
+  {
+    "id": 5,
+    "dimension": "agreeableness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "positive",
+    "text": "Me solidarizo con los sentimientos de los demás."
+  },
+  {
+    "id": 9,
+    "dimension": "conscientiousness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "positive",
+    "text": "Hago las tareas de inmediato."
+  },
+  {
+    "id": 13,
+    "dimension": "neuroticism",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "positive",
+    "text": "Tengo cambios de humor frecuentes."
+  },
+  {
+    "id": 17,
+    "dimension": "openness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "positive",
+    "text": "Tengo una imaginación vívida."
+  },
+  {
+    "id": 2,
+    "dimension": "extraversion",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "positive",
+    "text": "Hablo con muchas personas diferentes en las fiestas."
+  },
+  {
+    "id": 6,
+    "dimension": "agreeableness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "positive",
+    "text": "Siento las emociones de los demás."
+  },
+  {
+    "id": 10,
+    "dimension": "conscientiousness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "positive",
+    "text": "Me gusta el orden."
+  },
+  {
+    "id": 14,
+    "dimension": "neuroticism",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "positive",
+    "text": "Me altero con facilidad."
+  },
+  {
+    "id": 18,
+    "dimension": "openness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "Me cuesta entender ideas abstractas."
+  },
+  {
+    "id": 3,
+    "dimension": "extraversion",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "No hablo mucho."
+  },
+  {
+    "id": 7,
+    "dimension": "agreeableness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "No me interesan realmente los demás."
+  },
+  {
+    "id": 11,
+    "dimension": "conscientiousness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "A menudo olvido poner las cosas en su lugar."
+  },
+  {
+    "id": 15,
+    "dimension": "neuroticism",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "Estoy relajado la mayor parte del tiempo."
+  },
+  {
+    "id": 19,
+    "dimension": "openness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "No me interesan las ideas abstractas."
+  },
+  {
+    "id": 4,
+    "dimension": "extraversion",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "Me mantengo en segundo plano."
+  },
+  {
+    "id": 8,
+    "dimension": "agreeableness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "No me interesan los problemas de otras personas."
+  },
+  {
+    "id": 12,
+    "dimension": "conscientiousness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "Hago un desastre de las cosas."
+  },
+  {
+    "id": 16,
+    "dimension": "neuroticism",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "Rara vez me siento triste."
+  },
+  {
+    "id": 20,
+    "dimension": "openness",
+    "subfacet": "mini_ipip",
+    "medium": "mini_ipip",
+    "keying": "negative",
+    "text": "No tengo buena imaginación."
+  }
 ]

@@ -17,7 +17,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ visible, onClose, defaultTab = 'login' }: AuthModalProps) {
-  // 👇 USAMOS EL CONTEXTO AQUÍ
+  // USAMOS EL CONTEXTO AQUÍ
   const { login, register, googleSignIn, hasTestResults } = useAuth(); 
   
   const [activeTab, setActiveTab] = useState<'login' | 'register'>(defaultTab);

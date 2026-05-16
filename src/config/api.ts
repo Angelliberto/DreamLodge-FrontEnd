@@ -35,13 +35,3 @@ export const getBackendEndpoint = (path: string): string => {
   const finalUrl = `${baseUrl}${cleanPath}`;
   return finalUrl;
 };
-
-/**
- * TMDB API Key
- */
-export const TMDB_API_KEY = extra?.TMDB_API_KEY || '';
-
-/**
- * Spotify Client ID
- */
-export const SPOTIFY_CLIENT_ID = extra?.SPOTIFY_CLIENT_ID || '';
