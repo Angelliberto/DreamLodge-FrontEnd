@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Brain, EyeOff, Film, Heart, Sparkles } from 'lucide-react-native';
+import { ProfileHeader } from '@/components/ProfileHeader';
+import { Bookmark, Brain, EyeOff, Heart, Sparkles } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,6 +18,12 @@ import { NavigationBar } from '../src/components/NavigationBar';
 import { BackgroundLayout } from '../src/components/ui/BackgroundLayout';
 import { CulturalGridItem } from '../src/components/cultural/CulturalGridItem';
 import { DIMENSION_NAMES } from '../src/constants/oceanTestCopy';
+import {
+  OCEAN_SCORE_METRIC,
+  affineStored05ToLikertMean,
+  likertMeanToBarPercent,
+  type OceanScoreMetric,
+} from '../src/utils/oceanScoring';
 import { useAuth } from '../src/contexts/AuthContext';
 import {
   getFavorites,
@@ -96,6 +103,10 @@ export default function UserProfileScreen() {
           if (results && Array.isArray(results) && results.length > 0) {
             const latestResult = results[0];
             let dimensions: Record<string, number> = {};
+            const scoreMetric: OceanScoreMetric =
+              latestResult.scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+                ? OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+                : OCEAN_SCORE_METRIC.DISPLAY_AFFINE_05;
 
             if (
               latestResult.dimensions &&
@@ -107,7 +118,11 @@ export default function UserProfileScreen() {
               Object.keys(latestResult.scores).forEach((dimension) => {
                 const scoreObj = latestResult.scores[dimension];
                 if (scoreObj && typeof scoreObj.total === 'number') {
-                  dimensions[dimension] = scoreObj.total;
+                  const t = scoreObj.total;
+                  dimensions[dimension] =
+                    scoreMetric === OCEAN_SCORE_METRIC.IPIP_MEAN_1_5
+                      ? t
+                      : affineStored05ToLikertMean(t);
                 }
               });
             }
@@ -342,15 +357,15 @@ export default function UserProfileScreen() {
     }
     if (activeTab === 'pending') {
       return {
-        icon: Film,
-        title: 'No tienes pendientes',
+        icon: Bookmark,
+        title: 'No tienes guardados',
         subtitle: 'Marca obras que quieres ver después',
       };
     }
     return {
       icon: EyeOff,
-      title: 'No tienes obras marcadas',
-      subtitle: 'Aquí verás lo que marcaste como no me interesa',
+      title: 'No has ocultado ninguna obra',
+      subtitle: 'Las obras que ocultes en el feed aparecerán aquí',
     };
   }, [activeTab]);
 
@@ -360,7 +375,52 @@ export default function UserProfileScreen() {
       [activeTab]: Math.min((prev[activeTab] || LOAD_BATCH_SIZE) + LOAD_BATCH_SIZE, currentItems.length),
     }));
   }, [activeTab, currentItems.length]);
+  const tabOptions: Array<{
+    key: ProfileTab;
+    label: string;
+    count: number;
+  }> = [
+    {
+      key: 'favorites',
+      label: 'Favoritos',
+      count: favoritesCount,
+    },
+    {
+      key: 'pending',
+      label: 'Guardados',
+      count: pendingCount,
+    },
+    {
+      key: 'notInterested',
+      label: 'Ocultar',
+      count: notInterestedCount,
+    },
+  ];
 
+  const sortOptions: Array<{
+    key: SortMode;
+    label: string;
+  }> = [
+    {
+      key: 'recent',
+      label: 'Fecha',
+    },
+    {
+      key: 'type',
+      label: 'Tipo',
+    },
+    {
+      key: 'author',
+      label: 'Autor',
+    },
+    {
+      key: 'title',
+      label: 'Título',
+    },
+  ];
+
+const activeSortLabel =
+  sortOptions.find((option) => option.key === sortMode)?.label || 'Fecha';
   // Memoize handlePress to avoid recreating the function
   const handlePress = useCallback((item: CulturalItem) => {
     const itemData = JSON.stringify(item);
@@ -397,73 +457,13 @@ export default function UserProfileScreen() {
 
         <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100 }}>
           {/* Account Info Section */}
-          <View className="px-4 pt-4 pb-4">
-            <View className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4">
-              <Text className="text-white font-semibold text-base mb-1">{user?.name || 'Usuario'}</Text>
-              <Text className="text-slate-300 text-sm mb-4">{user?.email || 'usuario@gmail.com'}</Text>
-              
-              <View className="flex-row gap-4 mb-4">
-                <View className="flex-1">
-                  <Text className="text-slate-400 text-xs mb-1">Favoritos</Text>
-                  <Text className="text-white font-semibold text-lg">{favoritesCount}</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-slate-400 text-xs mb-1">Pendientes</Text>
-                  <Text className="text-white font-semibold text-lg">{pendingCount}</Text>
-                </View>
-              </View>
-              <View className="flex-row gap-4">
-                <View className="flex-1">
-                  <Text className="text-slate-400 text-xs mb-1">No me interesa</Text>
-                  <Text className="text-white font-semibold text-lg">{notInterestedCount}</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-slate-400 text-xs mb-1">Total guardadas</Text>
-                  <Text className="text-white font-semibold text-lg">{totalTrackedWorks}</Text>
-                </View>
-              </View>
-              <View className="mt-4 border-t border-slate-700/50 pt-3">
-                <Text className="text-slate-300 text-xs font-semibold mb-2">Resumen de favoritos</Text>
-                <Text className="text-slate-400 text-[11px] mb-1">Medios favoritos (ordenados)</Text>
-                {favoriteMediaStats.length > 0 ? (
-                  <View className="mb-3 flex-row flex-wrap gap-2">
-                    {favoriteMediaStats.map((row) => (
-                      <View
-                        key={row.key}
-                        className="rounded-full border border-slate-600/70 bg-slate-700/40 px-3 py-1"
-                      >
-                        <Text className="text-slate-200 text-xs">
-                          {row.label}: {row.count}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text className="text-slate-500 text-xs mb-3">Sin favoritos para calcular medios.</Text>
-                )}
-                <Text className="text-slate-400 text-[11px] mb-1">Géneros principales</Text>
-                {favoriteGenreStats.length > 0 ? (
-                  <View className="flex-row flex-wrap gap-2">
-                    {favoriteGenreStats.map((row) => (
-                      <View
-                        key={row.name}
-                        className="rounded-full border border-purple-500/40 bg-purple-600/15 px-3 py-1"
-                      >
-                        <Text className="text-purple-200 text-xs">
-                          {row.name} ({row.count})
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text className="text-slate-500 text-xs">Sin géneros en favoritos todavía.</Text>
-                )}
-              </View>
+          <ProfileHeader
+  name={user?.name || 'Usuario'}
+  email={user?.email || 'usuario@gmail.com'}
+  onPressSettings={() => router.push('/settings')}
+/>
 
-            </View>
-          </View>
-
-          {/* AI Analysis Section */}
+          {/* Artistic Profile Section */}
           {profile && testResults && (
             <View className="px-4 pt-2 pb-4">
               <Text className="text-white font-bold text-lg mb-3">Tu análisis de personalidad</Text>
@@ -501,7 +501,7 @@ export default function UserProfileScreen() {
                   const dim = DIMENSION_NAMES[key];
                   if (!dim) return null;
                   const score = typeof value === 'number' ? value : 0;
-                  const percentage = (score / 5) * 100;
+                  const percentage = likertMeanToBarPercent(score);
                   
                   return (
                     <View key={key} className="mb-2">
@@ -532,110 +532,107 @@ export default function UserProfileScreen() {
           )}
 
           {/* Tabs */}
-          <View className="px-4 pt-2 pb-3">
-            <View className="flex-row bg-slate-800/40 rounded-xl p-1">
-              <TouchableOpacity
-                onPress={() => setActiveTab('favorites')}
-                className={`flex-1 py-2 rounded-lg items-center ${
-                  activeTab === 'favorites' ? 'bg-purple-600/30' : ''
-                }`}
-              >
-                <Text className={`text-sm font-medium ${
-                  activeTab === 'favorites' ? 'text-white' : 'text-slate-400'
-                }`}>
-                  Favoritos
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setActiveTab('pending')}
-                className={`flex-1 py-2 rounded-lg items-center ${
-                  activeTab === 'pending' ? 'bg-purple-600/30' : ''
-                }`}
-              >
-                <Text className={`text-sm font-medium ${
-                  activeTab === 'pending' ? 'text-white' : 'text-slate-400'
-                }`}>
-                  Pendientes
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setActiveTab('notInterested')}
-                className={`flex-1 py-2 rounded-lg items-center ${
-                  activeTab === 'notInterested' ? 'bg-purple-600/30' : ''
-                }`}
-              >
-                <Text className={`text-sm font-medium ${
-                  activeTab === 'notInterested' ? 'text-white' : 'text-slate-400'
-                }`}>
-                  No me interesa
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <View className="mt-3 rounded-xl border border-slate-700/60 bg-slate-900/70 p-3">
-              <Text className="mb-2 text-xs font-semibold text-slate-300">Ordenar obras</Text>
-              <View className="flex-row flex-wrap gap-2">
-              {[
-                { key: 'recent', label: 'Fecha de agregado' },
-                { key: 'type', label: 'Tipo de obra' },
-                { key: 'author', label: 'Creador / Autor' },
-                { key: 'title', label: 'Título' },
-              ].map((option) => (
-                <TouchableOpacity
-                  key={option.key}
-                  onPress={() => setSortMode(option.key as SortMode)}
-                  className={`rounded-full border px-3 py-1 ${
-                    sortMode === option.key
-                      ? 'border-purple-500/70 bg-purple-600/25'
-                      : 'border-slate-600/70 bg-slate-700/35'
-                  }`}
-                >
-                  <Text
-                    className={`text-xs font-medium ${
-                      sortMode === option.key ? 'text-purple-100' : 'text-slate-300'
-                    }`}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              </View>
-              <View className="mt-3 flex-row gap-2">
-                <TouchableOpacity
-                  onPress={() => setSortDirection('desc')}
-                  className={`flex-1 rounded-lg border px-3 py-2 items-center ${
-                    sortDirection === 'desc'
-                      ? 'border-purple-500/70 bg-purple-600/25'
-                      : 'border-slate-600/70 bg-slate-700/35'
-                  }`}
-                >
-                  <Text
-                    className={`text-xs font-semibold ${
-                      sortDirection === 'desc' ? 'text-purple-100' : 'text-slate-300'
-                    }`}
-                  >
-                    Descendente
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setSortDirection('asc')}
-                  className={`flex-1 rounded-lg border px-3 py-2 items-center ${
-                    sortDirection === 'asc'
-                      ? 'border-purple-500/70 bg-purple-600/25'
-                      : 'border-slate-600/70 bg-slate-700/35'
-                  }`}
-                >
-                  <Text
-                    className={`text-xs font-semibold ${
-                      sortDirection === 'asc' ? 'text-purple-100' : 'text-slate-300'
-                    }`}
-                  >
-                    Ascendente
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
+         {/* Library Tabs */}
+<View className="px-4 pt-2 pb-3">
+  <View className="border-b border-slate-700/60">
+    <View className="flex-row">
+      {tabOptions.map((tab) => {
+        const isActive = activeTab === tab.key;
 
+        return (
+          <TouchableOpacity
+            key={tab.key}
+            activeOpacity={0.8}
+            onPress={() => setActiveTab(tab.key)}
+            className="flex-1 items-center pb-3"
+          >
+            <Text
+              className={`text-base font-bold ${
+                isActive ? 'text-white' : 'text-slate-500'
+              }`}
+              numberOfLines={1}
+            >
+              {tab.label}
+            </Text>
+
+            <Text
+              className={`mt-1 text-xs ${
+                isActive ? 'text-purple-300' : 'text-slate-600'
+              }`}
+            >
+              {tab.count}
+            </Text>
+
+            <View
+              className={`mt-3 h-1 w-full rounded-full ${
+                isActive ? 'bg-purple-400' : 'bg-transparent'
+              }`}
+            />
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  </View>
+
+  <View className="mt-4">
+    <View className="flex-row items-center justify-between">
+      <View className="flex-1 pr-3">
+        <Text className="text-white text-lg font-bold">
+          {activeTab === 'favorites'
+            ? 'Favoritos'
+            : activeTab === 'pending'
+              ? 'Guardados'
+              : 'Ocultar'}
+        </Text>
+
+        <Text className="mt-1 text-xs text-slate-400">
+          {currentItems.length} obras · Orden: {activeSortLabel}{' '}
+          {sortDirection === 'desc' ? '↓' : '↑'}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() =>
+          setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+        }
+        className="rounded-full border border-slate-700/70 bg-slate-900/70 px-4 py-2"
+      >
+        <Text className="text-xs font-semibold text-slate-300">
+          {sortDirection === 'desc' ? 'Descendente ↓' : 'Ascendente ↑'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+
+    <View className="mt-3 flex-row flex-wrap gap-2">
+      {sortOptions.map((option) => {
+        const isActive = sortMode === option.key;
+
+        return (
+          <TouchableOpacity
+            key={option.key}
+            activeOpacity={0.85}
+            onPress={() => setSortMode(option.key)}
+            className={`rounded-full border px-3 py-1.5 ${
+              isActive
+                ? 'border-purple-500/70 bg-purple-600/25'
+                : 'border-slate-600/70 bg-slate-800/70'
+            }`}
+          >
+            <Text
+              className={`text-xs font-medium ${
+                isActive ? 'text-purple-100' : 'text-slate-300'
+              }`}
+            >
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  </View>
+</View>
+         
           {/* Artworks Grid */}
           <View className="px-4 pb-4">
             {loadingArtworks && (favorites.length === 0 && pending.length === 0 && notInterested.length === 0) ? (

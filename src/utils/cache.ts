@@ -158,7 +158,7 @@ class SimpleCache {
 
 /** TTL recomendados (ms) — listas de usuario, feed, etc. */
 export const CACHE_TTL = {
-  /** Listas de obras del usuario (favoritos / pendientes / no interesa) */
+  /** Listas de obras del usuario (favoritos / guardados / ocultas) */
   userLists: 10 * 60 * 1000,
   /** Resultados de test OCEAN */
   testResults: 10 * 60 * 1000,

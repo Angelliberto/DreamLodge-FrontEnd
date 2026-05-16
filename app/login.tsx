@@ -1,14 +1,14 @@
+import { useLogin } from "@/hooks/useLogin";
 import { LoginRequest } from "@/types";
 import { useRouter } from "expo-router";
 import { Chrome, Lock, Mail, Sparkles } from "lucide-react-native";
+import { useForm } from "react-hook-form";
 import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useForm } from "react-hook-form";
-import { useLogin } from "@/hooks/useLogin";
-import { useAuth } from "../src/contexts/AuthContext";
 import { BackgroundLayout } from "../src/components/ui/BackgroundLayout";
 import { Button } from "../src/components/ui/button";
 import { FormInputField } from "../src/components/ui/FormInputField";
+import { useAuth } from "../src/contexts/AuthContext";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -151,7 +151,6 @@ export default function LoginScreen() {
                     try {
                       await googleSignIn();
                       await new Promise(resolve => setTimeout(resolve, 800));
-                      router.replace("/");
                     } catch (error: any) {
                       Alert.alert("Error", error.message || "Error al iniciar sesión con Google");
                     }

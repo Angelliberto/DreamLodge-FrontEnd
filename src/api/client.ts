@@ -6,6 +6,12 @@ import type { CulturalItem } from '../types/CulturalItem';
 import { CACHE_TTL, cache } from '../utils/cache';
 import { readCachedStaleWhileRevalidate } from '../utils/staleWhileRevalidate';
 import { storage } from '../utils/storage';
+import {
+  OCEAN_RESPONSE_SCALE,
+  OCEAN_SCORE_METRIC,
+  type OceanResponseScale,
+  facetMeanForPersistence,
+} from '../utils/oceanScoring';
 
 const getAuthToken = async (): Promise<string | null> => storage.getItem('userToken');
 
@@ -45,6 +51,14 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
   return response.data;
 }
 
+
+export const deleteAccount = async () => {
+  const token = await getAuthToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const response = await axios.delete(getBackendEndpoint('/users/delete'));
+  return response.data;
+};
 export async function verifyEmailCode(
   email: string,
   code: string
@@ -87,6 +101,10 @@ export async function saveTestResults(userId: string, results: any): Promise<voi
 
   const dimensions = results.dimensions || {};
   const subfacets = results.subfacets || {};
+  const responseScale: OceanResponseScale =
+    results.responseScale === OCEAN_RESPONSE_SCALE.IPIP_1_5
+      ? OCEAN_RESPONSE_SCALE.IPIP_1_5
+      : OCEAN_RESPONSE_SCALE.LEGACY_NEG2_POS2;
 
   const scores: any = {
     openness: { total: dimensions.openness || 0 },
@@ -102,11 +120,8 @@ export async function saveTestResults(userId: string, results: any): Promise<voi
         Object.keys(subfacets[dimension]).forEach((subfacet) => {
           const subfacetValues = subfacets[dimension][subfacet];
           if (Array.isArray(subfacetValues) && subfacetValues.length > 0) {
-            const average =
-              subfacetValues.reduce((sum: number, val: number) => sum + val, 0) /
-              subfacetValues.length;
-            const normalizedValue = ((average + 2) / 4) * 5;
-            scores[dimension][subfacet] = normalizedValue;
+            const lm = facetMeanForPersistence(subfacetValues, responseScale);
+            if (Number.isFinite(lm)) scores[dimension][subfacet] = lm;
           }
         });
       }
@@ -125,6 +140,8 @@ export async function saveTestResults(userId: string, results: any): Promise<voi
     scores,
     totalScore,
     testType: results.testType || 'quick',
+    responseScale,
+    scoreMetric: OCEAN_SCORE_METRIC.IPIP_MEAN_1_5,
   };
 
   await axios.post(getBackendEndpoint('/ocean'), payload);
@@ -208,6 +225,53 @@ export async function resetPassword(
 export async function getArtworkById(id: string): Promise<any> {
   const response = await axios.get(getBackendEndpoint(`/artworks/${id}`));
   return response.data?.data || response.data;
+}
+
+/** Descripción breve vía Gemini para álbum Spotify con texto genérico ("Álbum con N canciones"). */
+export async function enrichSpotifyAlbumDescription(
+  artwork: Record<string, unknown>
+): Promise<{ description: string } | null> {
+  const url = getBackendEndpoint('/artworks/spotify/album-enrich');
+  try {
+    const response = await axios.post(
+      url,
+      { artwork },
+      { timeout: 32000, headers: { 'Content-Type': 'application/json' } }
+    );
+    const row = response.data?.data;
+    if (row && typeof row.description === 'string' && row.description.trim().length > 0) {
+      return { description: row.description.trim() };
+    }
+    return null;
+  } catch (e: unknown) {
+    const err = e as { response?: { status?: number; data?: unknown }; message?: string; config?: { url?: string } };
+    console.warn('[enrichSpotifyAlbumDescription]', {
+      url,
+      status: err?.response?.status,
+      data: err?.response?.data,
+      message: err?.message,
+    });
+    return null;
+  }
+}
+
+/** Traduce la descripción al español (Gemini en servidor). */
+export async function translateArtworkDescriptionToSpanish(
+  text: string
+): Promise<{ text: string; alreadySpanish: boolean }> {
+  const response = await axios.post(
+    getBackendEndpoint('/artworks/translate-description'),
+    { text },
+    { timeout: 45000, headers: { 'Content-Type': 'application/json' } }
+  );
+  const row = response.data?.data;
+  if (row && typeof row.text === 'string') {
+    return {
+      text: row.text.trim(),
+      alreadySpanish: Boolean(row.alreadySpanish),
+    };
+  }
+  throw new Error('Respuesta de traducción inválida');
 }
 
 export async function getSimilarArtworks(
@@ -326,43 +390,16 @@ export type ArtisticSuggestedWork = {
   category: string;
   title: string;
   creator?: string;
+  genreHint?: string;
 };
-
-export const ARTISTIC_GENRE_KEYS = [
-  'cine',
-  'musica',
-  'literatura',
-  'videojuegos',
-  'arte-visual'
-] as const;
-
-export type GenreRecommendationsByCategory = Partial<
-  Record<(typeof ARTISTIC_GENRE_KEYS)[number], string[]>
->;
 
 export type ArtisticDescriptionPayload = {
   profile: string;
   description: string;
-  /** @deprecated Prefer genreRecommendations; mantenido por respuestas antiguas del backend */
+  /** Legado: respuestas antiguas del backend; ya no se usa en generación actual */
   recommendations: string[];
-  genreRecommendations?: GenreRecommendationsByCategory;
   suggestedWorks?: ArtisticSuggestedWork[];
 };
-
-function normalizeGenreRecommendations(
-  raw: unknown
-): GenreRecommendationsByCategory | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const o = raw as Record<string, unknown>;
-  const out: GenreRecommendationsByCategory = {};
-  for (const k of ARTISTIC_GENRE_KEYS) {
-    const arr = o[k];
-    if (!Array.isArray(arr)) continue;
-    const cleaned = arr.map((x) => String(x).trim()).filter((x) => x.length > 0);
-    if (cleaned.length) out[k] = cleaned;
-  }
-  return Object.keys(out).length ? out : undefined;
-}
 
 function normalizeArtisticPayload(raw: Record<string, unknown> | null | undefined): ArtisticDescriptionPayload {
   const rec = Array.isArray(raw?.recommendations) ? raw.recommendations : [];
@@ -384,8 +421,13 @@ function normalizeArtisticPayload(raw: Record<string, unknown> | null | undefine
     const key = `${category}:${title.toLowerCase()}`;
     if (seenWorks.has(key)) continue;
     seenWorks.add(key);
+    const genreHint =
+      typeof o.genreHint === 'string' && o.genreHint.trim().length > 0
+        ? o.genreHint.trim().slice(0, 160)
+        : undefined;
     const row: ArtisticSuggestedWork = { category, title: title.slice(0, 200) };
     if (creator) row.creator = creator;
+    if (genreHint) row.genreHint = genreHint;
     suggestedWorks.push(row);
     if (suggestedWorks.length >= 20) break;
   }
@@ -395,9 +437,8 @@ function normalizeArtisticPayload(raw: Record<string, unknown> | null | undefine
     description:
       typeof raw?.description === 'string'
         ? raw.description
-        : 'Tu análisis de personalidad se está generando...',
+        : 'Tu análisis IA se está generando...',
     recommendations: rec.filter((x): x is string => typeof x === 'string'),
-    genreRecommendations: normalizeGenreRecommendations(raw?.genreRecommendations),
     suggestedWorks: suggestedWorks.length > 0 ? suggestedWorks : undefined,
   };
 }
@@ -422,8 +463,12 @@ export async function generateArtisticDescription(
     getBackendEndpoint(`/ocean/user/${userId}/artistic-description`),
     options?.force ? { forceRegenerate: true } : {}
   );
+  const regenerated = Boolean((response.data as { regenerated?: boolean })?.regenerated);
   const data = normalizeArtisticPayload((response.data?.data || {}) as Record<string, unknown>);
   cache.set(cacheKey, data, CACHE_TTL.artisticDescription);
+  if (regenerated) {
+    invalidatePersonalizedFeedCache();
+  }
   return data;
 }
 
@@ -433,22 +478,21 @@ export type PersonalizedFeedCuratedPayload = {
   recommendationMode?: 'ocean' | 'favorites';
   webSearchUsed?: boolean;
   reason?: string;
-  cached?: boolean;
-  /** Respuesta rápida mientras el servidor termina la curación completa en segundo plano */
+  /** Respuesta rápida async: anclas del perfil antes de que termine la curación IA (solo modo océano). */
   partial?: boolean;
-  refreshing?: boolean;
-  source?: string;
+  cached?: boolean;
+  buildStatus?: 'building' | 'ready' | 'failed';
+  buildId?: string | null;
+  buildVersion?: number;
+  generatedAt?: number;
 };
-
-const PARTIAL_FEED_CACHE_MS = 4_000;
 
 export async function fetchPersonalizedFeedCurated(options?: {
   force?: boolean;
   anchorsOnly?: boolean;
   preferFavorites?: boolean;
   userId?: string;
-  /** Ignora caché en memoria (útil para reintentos tras respuesta partial del servidor). */
-  noCache?: boolean;
+  async?: boolean;
 }): Promise<PersonalizedFeedCuratedPayload> {
   const token = await getAuthToken();
   if (!token) throw new Error('Not authenticated');
@@ -467,16 +511,22 @@ export async function fetchPersonalizedFeedCurated(options?: {
     }
   }
   const cacheKey = `personalizedFeed:${cacheUserId || 'anon'}:${options?.force ? 1 : 0}:${options?.anchorsOnly ? 1 : 0}:${options?.preferFavorites ? 1 : 0}`;
-  if (options?.force || options?.noCache) {
+  if (options?.force) {
     cache.delete(cacheKey);
   } else {
     const cached = cache.get<PersonalizedFeedCuratedPayload>(cacheKey);
-    if (cached) return cached;
+    // No usar caché mientras async=1 está generando feed en backend (si no, el poll nunca ve "ready").
+    if (cached && options?.async !== false && cached.buildStatus === 'building') {
+      cache.delete(cacheKey);
+    } else if (cached) {
+      return cached;
+    }
   }
   const params: Record<string, string | number> = {};
   if (options?.force) params.force = 1;
   if (options?.anchorsOnly) params.anchorsOnly = 1;
   if (options?.preferFavorites) params.preferFavorites = 1;
+  params.async = options?.async === false ? 0 : 1;
   const response = await axios.get<{
     message?: string;
     data: PersonalizedFeedCuratedPayload;
@@ -488,8 +538,14 @@ export async function fetchPersonalizedFeedCurated(options?: {
   if (!Array.isArray(payload.items)) {
     return { ...payload, items: [] };
   }
-  const baseTtl = options?.anchorsOnly ? CACHE_TTL.personalizedFeedAnchors : CACHE_TTL.personalizedFeed;
-  const ttl = payload.partial ? PARTIAL_FEED_CACHE_MS : baseTtl;
-  cache.set(cacheKey, payload, ttl);
+  const skipCacheWhileBuilding =
+    options?.async !== false && payload.buildStatus === 'building';
+  if (!skipCacheWhileBuilding) {
+    cache.set(
+      cacheKey,
+      payload,
+      options?.anchorsOnly ? CACHE_TTL.personalizedFeedAnchors : CACHE_TTL.personalizedFeed
+    );
+  }
   return payload;
 }

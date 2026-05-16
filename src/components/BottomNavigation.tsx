@@ -23,16 +23,16 @@ export function BottomNavigation({ useAbsolutePosition = true }: BottomNavigatio
   // Memoizar navItems para evitar recrear en cada render
   const navItems = useMemo(() => [
     { 
-      icon: Film, 
-      label: 'Explorar', 
-      route: '/FeedScreen',
-      active: pathname === '/FeedScreen'
-    },
-    { 
       icon: Brain, 
       label: 'Resultados', 
       route: '/test_results',
       active: pathname === '/test_results'
+    },
+    { 
+      icon: Film, 
+      label: 'Explorar', 
+      route: '/FeedScreen',
+      active: pathname === '/FeedScreen'
     },
     { 
       icon: MessageSquare, 

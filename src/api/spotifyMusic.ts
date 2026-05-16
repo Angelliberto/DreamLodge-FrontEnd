@@ -4,7 +4,27 @@
  */
 import { getBackendEndpoint } from '../config/api';
 
-const SPOTIFY_API_BASE_URL = 'https://api.spotify.com/v1/';
+const SPOTIFY_API_BASE_URL = 'https://api.spotify.com/v1';
+
+/** Lee el cuerpo como texto y parsea JSON; evita fallos si Spotify (o un proxy) devuelve texto/HTML en errores. */
+async function spotifyJsonOrThrow(response: Response): Promise<any> {
+  const text = await response.text();
+  if (!response.ok) {
+    let detail = text.trim().slice(0, 200) || response.statusText;
+    try {
+      const errBody = JSON.parse(text);
+      if (errBody?.error?.message) detail = errBody.error.message;
+    } catch {
+      /* cuerpo no JSON (p. ej. "Too Many Requests") */
+    }
+    throw new Error(`Spotify API ${response.status}: ${detail}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Spotify returned non-JSON body for ${response.url}`);
+  }
+}
 
 let cachedToken: string | null = null;
 let tokenExpiration = 0;
@@ -37,8 +57,7 @@ export const makeSpotifyRequest = async (
   const response = await fetch(`${SPOTIFY_API_BASE_URL}${endpoint}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!response.ok) throw new Error(`Spotify API Error: ${response.status}`);
-  return response.json();
+  return spotifyJsonOrThrow(response);
 };
 
 export const getAlbumDetailsAndTracks = async (
@@ -48,7 +67,7 @@ export const getAlbumDetailsAndTracks = async (
   const response = await fetch(`${SPOTIFY_API_BASE_URL}/albums/${albumId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  return response.json();
+  return spotifyJsonOrThrow(response);
 };
 
 export const getArtistGenres = async (

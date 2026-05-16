@@ -27,7 +27,7 @@ export function SelectedDimensionDetailsBlock({
   subfacets,
   subfacetsShowAll,
   setSubfacetsShowAll,
-  getScoreLabel
+  getScoreLabel,
 }: Props) {
   if (!selectedDimension || normalizedDimensions[selectedDimension] === undefined) {
     return null;
@@ -60,8 +60,8 @@ export function SelectedDimensionDetailsBlock({
               Puntuación
             </Text>
             <Text className="text-3xl font-bold text-white">
-              {scoreVal.toFixed(1)}
-              <Text className="text-lg font-semibold text-slate-500">/5</Text>
+              {scoreVal.toFixed(2)}
+              <Text className="text-lg font-semibold text-slate-500"> (1–5)</Text>
             </Text>
           </View>
           <View className="min-w-0 flex-1 border-l border-slate-600/50 pl-4">

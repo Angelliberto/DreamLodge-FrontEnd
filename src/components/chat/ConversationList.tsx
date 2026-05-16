@@ -50,7 +50,7 @@ export function ConversationList({
       </View>
 
       {/* Conversations List */}
-      <ScrollView className="flex-1">
+      <ScrollView className="flex-1" keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {conversations.length === 0 ? (
           <View className="items-center justify-center py-20 px-4">
             <MessageSquare size={48} color="#64748b" />

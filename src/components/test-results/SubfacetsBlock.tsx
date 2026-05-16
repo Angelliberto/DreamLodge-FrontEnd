@@ -2,10 +2,17 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
 import { AB5C_SUBFACET_ORDER, DIMENSION_NAMES, SUBFACET_INFO } from '@/constants/oceanTestCopy';
+import { averageKeyedLikert, likertMeanToBarPercent } from '@/utils/oceanScoring';
 
 const SUBFACETS_PREVIEW_COUNT = 3;
 
-type Props = {
+export function facetLikertMeanFromArrays(values: number[]): number {
+  const m = averageKeyedLikert(values);
+  if (!Number.isFinite(m)) return 3;
+  return Math.min(5, Math.max(1, m));
+}
+
+export type Props = {
   selectedDimension: string;
   subfacets: Record<string, Record<string, number[]>>;
   subfacetsShowAll: boolean;
@@ -38,26 +45,23 @@ export function SubfacetsBlock({
     <View className="rounded-xl border border-slate-600/40 bg-slate-900/40 p-4">
       <Text className="text-white font-semibold text-base mb-1">Facetas AB5C</Text>
       <Text className="text-slate-500 text-xs mb-3 leading-5">
-        Cada tarjeta es una subfaceta del modelo IPIP (AB5C). La barra resume tu puntuación en 0–5.
+        Media de ítems IPIP tras recodificar negativos (6 − R; Likert 1–5 por ítem). Puntuación = media Likert del
+        conjunto de ítems de la faceta (estilo habitual en documentación Mini-IPIP / IPIP correlativos).
       </Text>
       <View className="gap-1">
         {visible.map(([subfacet, scores]: [string, number[]]) => {
-          const average = scores.reduce((sum: number, val: number) => sum + val, 0) / scores.length;
-          const normalizedScore = ((average + 2) / 4) * 5;
+          const likertMean = facetLikertMeanFromArrays(scores);
           const info = SUBFACET_INFO[subfacet];
           const subfacetName = info?.label ?? subfacet;
           const subfacetDesc = info?.descripcion;
-          const pct = (normalizedScore / 5) * 100;
+          const pct = likertMeanToBarPercent(likertMean);
 
           return (
             <View
               key={subfacet}
               className="overflow-hidden rounded-xl border border-slate-600/35 bg-slate-800/60"
             >
-              <View
-                className="flex-row"
-                style={{ borderLeftWidth: 4, borderLeftColor: dimColor }}
-              >
+              <View className="flex-row" style={{ borderLeftWidth: 4, borderLeftColor: dimColor }}>
                 <View className="flex-1 p-3">
                   <View className="flex-row items-start justify-between gap-2">
                     <View className="min-w-0 flex-1 pr-1">
@@ -72,9 +76,9 @@ export function SubfacetsBlock({
                     </View>
                     <View className="shrink-0 items-end rounded-lg border border-slate-600/50 bg-slate-900/80 px-2 py-1.5">
                       <Text className="text-lg font-bold leading-none text-white">
-                        {normalizedScore.toFixed(1)}
+                        {likertMean.toFixed(2)}
                       </Text>
-                      <Text className="text-[10px] text-slate-500">de 5</Text>
+                      <Text className="text-[10px] text-slate-500">media 1–5</Text>
                     </View>
                   </View>
                   <View className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-700/90">

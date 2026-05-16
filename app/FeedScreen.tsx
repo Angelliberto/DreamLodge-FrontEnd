@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback } from 'react';
 import {
-  ActivityIndicator,
   ScrollView,
   StatusBar,
   Text,
@@ -11,8 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomNavigation } from '../src/components/BottomNavigation';
 import { NavigationBar } from '../src/components/NavigationBar';
 import { ArtworkCard } from '../src/components/feed/ArtworkCard';
-import { FeedFiltersModal } from '../src/components/feed/FeedFiltersModal';
 import { FeedHeader } from '../src/components/feed/FeedHeader';
+import { FeedRecommendationsLoader } from '../src/components/feed/FeedRecommendationsLoader';
 import { RecommendationSection } from '../src/components/feed/RecommendationSection';
 import { SearchFeedModal } from '../src/components/feed/SearchFeedModal';
 import { FILTER_CATEGORIES } from '../src/components/feed/feedCategories';
@@ -29,21 +28,11 @@ export default function UnifiedFeedScreen() {
     query,
     setQuery,
     loading,
+    awaitingOceanFeed,
     searchLoading,
     refreshingFeed,
     hasSearched,
-    showFilters,
-    setShowFilters,
     selectedCategories,
-    selectedCinemaType,
-    setSelectedCinemaType,
-    selectedGenres,
-    selectedAuthor,
-    setSelectedAuthor,
-    yearFrom,
-    setYearFrom,
-    yearTo,
-    setYearTo,
     hasActiveFilters,
     favoriteIds,
     pendingIds,
@@ -53,15 +42,11 @@ export default function UnifiedFeedScreen() {
     principalRecommendations,
     favoritesRecommendationLine,
     recommendationsByCategory,
-    availableGenres,
-    availableAuthors,
     feedCardWidth,
     feedPosterHeight,
     recommendationCardWidth,
     recommendationPosterHeight,
     toggleCategory,
-    toggleGenre,
-    clearFilters,
     handleToggleFavorite,
     handleTogglePending,
     getCategoryIcon,
@@ -69,7 +54,6 @@ export default function UnifiedFeedScreen() {
     getCinemaTypeLabel,
     triggerImmediateSearch,
     refreshFeed,
-    feedContentVersion,
   } = useFeedScreenController(FILTER_CATEGORIES);
 
   const handlePress = useCallback((item: CulturalItem) => {
@@ -146,15 +130,19 @@ export default function UnifiedFeedScreen() {
         />
 
         <ScrollView
-          key={`feed-scroll-${feedContentVersion}`}
           className="flex-1"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 100 }}
         >
-          {loading ? (
-            <View className="flex-1 justify-center items-center py-20">
-              <ActivityIndicator size="large" color="#c084fc" />
-              <Text className="mt-4 text-slate-400">Cargando recomendaciones...</Text>
+          {loading || awaitingOceanFeed ? (
+            <View className="min-h-[420px] flex-1 items-center justify-center px-4 py-16">
+              <FeedRecommendationsLoader
+                headline={
+                  awaitingOceanFeed && !loading
+                    ? 'Generando recomendaciones para ti'
+                    : 'Cargando recomendaciones'
+                }
+              />
             </View>
           ) : (
             <>
@@ -238,7 +226,6 @@ export default function UnifiedFeedScreen() {
           query={query}
           onChangeQuery={setQuery}
           onSubmitSearch={triggerImmediateSearch}
-          onToggleFilters={() => setShowFilters((prev) => !prev)}
           searchLoading={searchLoading}
           hasSearched={hasSearched}
           filteredSearchItems={filteredSearchItems}
@@ -246,27 +233,9 @@ export default function UnifiedFeedScreen() {
           feedPosterHeight={feedPosterHeight}
           renderItem={renderItem}
           listExtraData={{ favoriteIds, pendingIds, updatingItems }}
-        />
-
-        <FeedFiltersModal
-          visible={showFilters}
-          onClose={() => setShowFilters(false)}
           filterCategories={FILTER_CATEGORIES}
           selectedCategories={selectedCategories}
           toggleCategory={toggleCategory}
-          selectedCinemaType={selectedCinemaType}
-          setSelectedCinemaType={setSelectedCinemaType}
-          availableGenres={availableGenres}
-          selectedGenres={selectedGenres}
-          toggleGenre={toggleGenre}
-          availableAuthors={availableAuthors}
-          selectedAuthor={selectedAuthor}
-          setSelectedAuthor={setSelectedAuthor}
-          yearFrom={yearFrom}
-          setYearFrom={setYearFrom}
-          yearTo={yearTo}
-          setYearTo={setYearTo}
-          clearFilters={clearFilters}
         />
 
         <BottomNavigation />

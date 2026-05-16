@@ -45,9 +45,9 @@ export const useRegister = (reset: () => void) => {
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.message && !error.message.includes("Network Error")) {
+        
         errorMessage = error.message;
       }
-
       Alert.alert("Error en el registro", errorMessage);
     }
   };

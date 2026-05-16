@@ -1,0 +1,13 @@
+{
+  "method": "IPIP-style accuracy / descriptiveness (1 = very inaccurate, 5 = very accurate)",
+  "itemsUseKeyingFromJson": true,
+  "negativeItemRule": "six_minus_R",
+  "instruction": "Indica qué tan bien te describe cada frase (como en el IPIP: precisión de la descripción).",
+  "options": [
+    { "value": 1, "label": "Muy imprecisa", "color": "#ef4444" },
+    { "value": 2, "label": "Moderadamente imprecisa", "color": "#f87171" },
+    { "value": 3, "label": "Ni precisa ni imprecisa", "color": "#64748b" },
+    { "value": 4, "label": "Moderadamente precisa", "color": "#86efac" },
+    { "value": 5, "label": "Muy precisa", "color": "#22c55e" }
+  ]
+}

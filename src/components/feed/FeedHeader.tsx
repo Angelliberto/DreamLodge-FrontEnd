@@ -14,27 +14,29 @@ export function FeedHeader({
   refreshing = false,
 }: FeedHeaderProps) {
   return (
-    <View className="px-4 pt-4 pb-2">
-      <View className="flex-row items-center justify-between">
+    <View className="px-4 pt-3 pb-2">
+      <View className="flex-row overflow-hidden rounded-2xl border border-purple-500/25 bg-slate-950/70">
         <TouchableOpacity
-          className="w-11 h-11 rounded-xl border border-slate-600 bg-slate-800/85 items-center justify-center"
+          className="min-h-[48px] flex-1 flex-row items-center justify-center gap-2 py-3"
           onPress={onPressSearch}
-          activeOpacity={0.85}
+          activeOpacity={0.75}
         >
-          <Search size={20} color="#e2e8f0" />
+          <Search size={20} color="#e9d5ff" />
+          <Text className="text-sm font-semibold text-slate-100">Buscar</Text>
         </TouchableOpacity>
+        <View className="my-2.5 w-px self-stretch bg-white/12" />
         <TouchableOpacity
-          className="h-11 rounded-xl border border-slate-600 bg-slate-800/85 px-3 flex-row items-center justify-center"
+          className="min-h-[48px] flex-1 flex-row items-center justify-center gap-2 py-3"
           onPress={onPressRefresh}
-          activeOpacity={0.85}
+          activeOpacity={0.75}
           disabled={refreshing}
         >
           {refreshing ? (
-            <ActivityIndicator size="small" color="#cbd5e1" />
+            <ActivityIndicator size="small" color="#e9d5ff" />
           ) : (
-            <RefreshCw size={16} color="#cbd5e1" />
+            <RefreshCw size={18} color="#e9d5ff" />
           )}
-          <Text className="ml-2 text-slate-200 text-xs font-semibold">Refrescar</Text>
+          <Text className="text-sm font-semibold text-slate-100">Refrescar</Text>
         </TouchableOpacity>
       </View>
     </View>
