@@ -11,18 +11,19 @@ export default function HomeScreen() {
   useEffect(() => {
     if (isLoading) return;
 
-    // Si el usuario está autenticado, redirigir según si tiene test
-    if (user) {
-      // Si tiene al menos un test completado, ir a FeedScreen
-      if (hasTestResults || hasQuickTest || hasDeepTest) {
-        router.replace('/FeedScreen');
+    const timeout = setTimeout(() => {
+      if (user) {
+        if (hasTestResults || hasQuickTest || hasDeepTest) {
+          router.replace('/FeedScreen');
+        } else {
+          router.replace('/test-selection');
+        }
       } else {
-        router.replace('/test-selection');
+        router.replace('/login');
       }
-    } else {
-      // Si no está autenticado, redirigir a login
-      router.replace('/login');
-    }
+    }, 500);
+
+    return () => clearTimeout(timeout);
   }, [user, hasTestResults, hasQuickTest, hasDeepTest, isLoading, router]);
 
   // Mostrar loading mientras se verifica la autenticación
