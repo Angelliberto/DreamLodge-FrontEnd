@@ -11,6 +11,7 @@
       "android",
       "web"
     ],
+    "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
