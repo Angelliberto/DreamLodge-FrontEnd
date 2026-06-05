@@ -4,6 +4,7 @@ import React, { useCallback, useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
+import { uiTokens } from '../theme/tokens';
 
 type BottomNavigationProps = {
   /** When false, the bar sits in normal layout flow (e.g. chat + keyboard) instead of overlaying content. */
@@ -74,7 +75,7 @@ export function BottomNavigation({ useAbsolutePosition = true }: BottomNavigatio
             {navItems.map((item, index) => {
               const Icon = item.icon;
               const isActive = item.active;
-              const iconColor = isActive ? '#c084fc' : '#64748b';
+              const iconColor = isActive ? uiTokens.color.navActive : uiTokens.color.navInactive;
               const textColor = isActive ? 'text-purple-400' : 'text-slate-500';
               
               return (

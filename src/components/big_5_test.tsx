@@ -135,7 +135,7 @@ export function TestSelectionScreen() {
             </View>
             
             <Text className="text-3xl font-bold text-white text-center mb-4">
-              Test de Personalidad Artística
+              Test de Personalidad Big Five
             </Text>
             
             <Text className="text-base text-slate-400 text-center px-4 leading-6">
