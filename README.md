@@ -27,69 +27,6 @@ Construida con **Expo** y **React Native**, funciona en **Android**.
 | Iconos | [Lucide React Native](https://lucide.dev/) |
 | Builds nativos | [EAS Build](https://docs.expo.dev/build/introduction/) |
 
-## Requisitos previos
-
-- [Node.js](https://nodejs.org/) 18 o superior
-- [npm](https://www.npmjs.com/) (incluido con Node)
-- [Expo CLI](https://docs.expo.dev/more/expo-cli/) (vía `npx expo`)
-- Para Android/iOS: emulador o dispositivo físico; para builds de producción, cuenta en [Expo](https://expo.dev)
-
-## Instalación
-
-```bash
-git clone https://github.com/<tu-usuario>/dreamlodge-frontend.git
-cd dreamlodge-frontend
-npm install
-```
-
-## Configuración
-
-La URL del backend se define en `app.json` bajo `expo.extra.BACKEND_URL`:
-
-```json
-{
-  "expo": {
-    "extra": {
-      "BACKEND_URL": "https://tu-backend.example.com"
-    }
-  }
-}
-```
-
-Opcionalmente puedes usar un archivo `.env` en desarrollo (está en `.gitignore`). La app resuelve la URL en `src/config/api.ts`.
-
-### Assets requeridos
-
-Para builds nativos (EAS / `expo prebuild`) deben existir y estar versionados en git:
-
-- `assets/images/icon.png` — icono de la app y splash screen
-- `assets/images/favicon.png` — favicon web
-
-## Ejecución en desarrollo
-
-```bash
-# Servidor de desarrollo (Expo Dev Tools)
-npm start
-
-# Plataformas específicas
-npm run android
-npm run ios
-npm run web
-```
-
-Escanea el QR con **Expo Go** o abre la app en un development build.
-
-## Scripts disponibles
-
-| Comando | Descripción |
-|---------|-------------|
-| `npm start` | Inicia el servidor de Expo |
-| `npm run android` | Abre en emulador/dispositivo Android |
-| `npm run ios` | Abre en simulador/dispositivo iOS |
-| `npm run web` | Ejecuta la versión web |
-| `npm run lint` | Ejecuta ESLint |
-| `npm run reset-project` | Restaura la plantilla inicial de Expo (script de utilidad) |
-
 ## Estructura del proyecto
 
 ```
@@ -113,43 +50,6 @@ dreamlodge-frontend/
 ├── assets/images/          # Iconos y recursos estáticos
 ├── app.json                # Configuración Expo
 └── eas.json                # Perfiles de build EAS
-```
-
-## Builds con EAS
-
-El proyecto incluye perfiles en `eas.json`:
-
-- **development** — cliente de desarrollo
-- **preview** — APK interno (Android)
-- **production** — build de producción con auto-incremento de versión
-
-```bash
-# Instalar EAS CLI (si no lo tienes)
-npm install -g eas-cli
-
-# Login en Expo
-eas login
-
-# Build Android
-eas build --platform android --profile preview
-
-# Build producción
-eas build --platform android --profile production
-```
-
-Antes de hacer push a EAS, asegúrate de que `assets/images/icon.png` y `assets/images/favicon.png` estén commiteados:
-
-```bash
-git add assets/images/icon.png assets/images/favicon.png
-git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -m "Add app icons for native builds"
-git push
-```
-
-## Verificación del entorno
-
-```bash
-npx expo-doctor
-npx expo install --check
 ```
 
 ## Flujo de la aplicación
