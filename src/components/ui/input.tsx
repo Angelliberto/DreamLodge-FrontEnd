@@ -1,5 +1,6 @@
 import React from "react";
 import { TextInput, TextInputProps } from "react-native";
+import { uiTokens } from "@/theme/tokens";
 
 type InputProps = TextInputProps & {
   className?: string;
@@ -11,7 +12,7 @@ export function Input({ className = "", ...props }: InputProps) {
 
   return (
     <TextInput
-      placeholderTextColor="#94a3b8"
+      placeholderTextColor={uiTokens.color.textMuted}
       className={`${baseStyles} ${className}`}
       {...props}
     />

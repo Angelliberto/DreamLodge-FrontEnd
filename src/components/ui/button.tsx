@@ -2,6 +2,7 @@ import React from 'react';
 import { TouchableOpacity, Text, TouchableOpacityProps, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
+import { uiTokens } from '@/theme/tokens';
 
 // Configuración mínima necesaria para que NativeWind entienda el gradiente
 cssInterop(LinearGradient, {
@@ -18,23 +19,24 @@ interface ButtonProps extends TouchableOpacityProps {
 
 export function Button({ variant = 'primary', title, className = "", loading, icon, ...props }: ButtonProps) {
   const baseStyle = "h-12 rounded-xl flex-row items-center justify-center px-6";
+  const iconSpacingClass = icon ? 'ml-2' : '';
   
   if (variant === 'primary') {
     return (
       <TouchableOpacity activeOpacity={0.8} {...props} disabled={loading}>
         <LinearGradient
-          colors={['#7c3aed', '#db2777']} // Purple to Pink
+          colors={uiTokens.gradient.brand}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           className={`${baseStyle} ${className}`}
-          style={{ borderRadius: 12 }} 
+          style={{ borderRadius: uiTokens.radius.md }}
         >
           {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color={uiTokens.color.textPrimary} />
           ) : (
             <>
               {icon}
-              <Text className="text-white font-bold text-base ml-2">{title}</Text>
+              <Text className={`text-white font-bold text-base ${iconSpacingClass}`}>{title}</Text>
             </>
           )}
         </LinearGradient>
@@ -51,7 +53,7 @@ export function Button({ variant = 'primary', title, className = "", loading, ic
       disabled={loading}
     >
        {icon}
-       <Text className="text-white font-medium text-base ml-2">{title}</Text>
+       <Text className={`text-white font-medium text-base ${iconSpacingClass}`}>{title}</Text>
     </TouchableOpacity>
   );
 }

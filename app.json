@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "dreamlodge-frontend",
-    "slug": "dreamlodge-frontend",
+    "slug": "dreamlodge",
+    "owner": "angllibertos-organization",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "dreamlodgefrontend",
@@ -19,7 +20,8 @@
     },
     "android": {
       "edgeToEdgeEnabled": true,
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "package": "com.dreamlodgeapp.app"
     },
     "web": {
       "bundler": "metro",
@@ -31,7 +33,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
@@ -39,13 +41,17 @@
       ],
       "expo-asset",
       "expo-audio",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "BACKEND_URL": "https://impressive-cathee-immune-angelceb-312ac472.koyeb.app"
+      "BACKEND_URL": "https://impressive-cathee-immune-angelceb-312ac472.koyeb.app",
+      "eas": {
+        "projectId": "72406e94-1111-43fa-98b4-284e34852e48"
+      }
     }
   }
 }
